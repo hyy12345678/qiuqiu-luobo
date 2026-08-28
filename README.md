@@ -25,6 +25,7 @@ npm run dev -- --host    # 开放局域网访问，手机连同一 WiFi 后真�
 npm run typecheck        # TS 类型检查
 npm run build            # 产出单文件 dist/index.html
 node /tmp/qqlb-smoke.cjs # 逻辑冒烟测试（见下）
+npm run test:click       # 无头浏览器真实点击回归（需本机 Chrome）
 ```
 
 冒烟测试覆盖每关的路径长度/边界、障碍物合法性、波次时间线与存档解锁逻辑：
@@ -32,6 +33,8 @@ node /tmp/qqlb-smoke.cjs # 逻辑冒烟测试（见下）
 ```bash
 npx esbuild scripts/smoke.ts --bundle --platform=node --format=cjs --outfile=/tmp/qqlb-smoke.cjs && node /tmp/qqlb-smoke.cjs
 ```
+
+`test:click` 用 puppeteer-core 驱动本机 Chrome，模拟「选关 → 点草地建塔 → 点路面不误弹」的真实指针交互，专门捕捉逻辑冒烟测不到的事件穿透/命中问题（如全屏 DOM 遮罩吃掉 canvas 点击导致无法建塔）。也可传 URL 测线上：`node scripts/click-test.cjs https://你的域名/`。
 
 ## 部署
 

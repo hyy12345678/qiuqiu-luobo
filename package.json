@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:click": "node scripts/click-test.cjs"
   },
   "devDependencies": {
+    "puppeteer-core": "^25.9.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.0",
     "vite-plugin-singlefile": "^2.3.3"
