@@ -26,7 +26,9 @@
     body { display: flex; align-items: center; justify-content: center; }
     #stage { position: relative; }
     #game-canvas { display: block; width: 100%; height: 100%; }
-    #ui-root { position: absolute; inset: 0; }
+    /* ui-root 铺满画布上方，必须对指针事件透明，否则 canvas 收不到点击；
+       可交互子元素（.btn / .lv-card / .build-bar / .overlay / .chip.call-ready）各自 pointer-events: auto */
+    #ui-root { position: absolute; inset: 0; pointer-events: none; }
 
     /* ---- 通用按钮（尺寸全部用 em，随画面缩放） ---- */
     .btn {
@@ -37,6 +39,7 @@
       color: #5b3208;
       font-weight: 700;
       cursor: pointer;
+      pointer-events: auto;
       box-shadow: 0 0.28em 0 #d97b06, 0 0.4em 0.6em rgba(0, 0, 0, 0.25);
       transition: transform 0.05s ease;
     }
@@ -81,6 +84,7 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 0.12em;
       cursor: pointer;
+      pointer-events: auto;
       transition: transform 0.06s ease;
     }
     .lv-card:active:not(:disabled) { transform: translateY(0.14em); box-shadow: 0 0.12em 0 #8a5c33; }
