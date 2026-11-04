@@ -16,6 +16,10 @@ interface Poof {
 
 const FLOAT_DUR = 0.9;
 const POOF_DUR = 0.38;
+/** 烟云的四个小球（相对偏移与半径），模块级常量避免每帧分配 */
+const PUFF_BALLS: ReadonlyArray<readonly [number, number, number]> = [
+  [-0.5, -0.15, 0.55], [0.5, -0.1, 0.5], [0, -0.5, 0.6], [0, 0.05, 0.65],
+];
 
 /** 轻量特效层：飘字（金币/伤害）与烟雾团（死亡/建造） */
 export class Effects {
@@ -33,10 +37,19 @@ export class Effects {
   }
 
   update(dt: number): void {
-    for (const f of this.floats) f.t += dt;
-    this.floats = this.floats.filter((f) => f.t < FLOAT_DUR);
-    for (const p of this.poofs) p.t += dt;
-    this.poofs = this.poofs.filter((p) => p.t < POOF_DUR);
+    // 原地压缩，不每帧新建数组
+    let n = 0;
+    for (const f of this.floats) {
+      f.t += dt;
+      if (f.t < FLOAT_DUR) this.floats[n++] = f;
+    }
+    this.floats.length = n;
+    n = 0;
+    for (const p of this.poofs) {
+      p.t += dt;
+      if (p.t < POOF_DUR) this.poofs[n++] = p;
+    }
+    this.poofs.length = n;
   }
 
   render(ctx: CanvasRenderingContext2D): void {
@@ -45,7 +58,7 @@ export class Effects {
       ctx.globalAlpha = (1 - k) * 0.85;
       ctx.fillStyle = p.color;
       // 一团四球的小烟云，随时间扩散
-      for (const [dx, dy, r] of [[-0.5, -0.15, 0.55], [0.5, -0.1, 0.5], [0, -0.5, 0.6], [0, 0.05, 0.65]]) {
+      for (const [dx, dy, r] of PUFF_BALLS) {
         ctx.beginPath();
         ctx.arc(p.x + dx * p.scale, p.y + dy * p.scale - k * 8, r * p.scale * (0.5 + k * 0.7), 0, Math.PI * 2);
         ctx.fill();

@@ -30,17 +30,37 @@ export class Path {
 
   /** 里程 d 处的坐标与朝向（自动循环取模） */
   getPos(d: number): PathPoint {
+    const out: PathPoint = { x: 0, y: 0, angle: 0 };
+    this.sampleInto(d, out);
+    out.angle = this.angleAt(d);
+    return out;
+  }
+
+  /** 把里程 d 处的坐标写入 out，不分配新对象（怪物每帧调用） */
+  sampleInto(d: number, out: { x: number; y: number }): void {
     let dd = d % this.total;
     if (dd < 0) dd += this.total;
-    let i = 0;
-    while (i < this.cum.length - 2 && this.cum[i + 1] < dd) i++;
+    const i = this.segmentAt(dd);
     const a = this.points[i];
     const b = this.points[i + 1];
     const t = (dd - this.cum[i]) / (this.cum[i + 1] - this.cum[i]);
-    return {
-      x: a.x + (b.x - a.x) * t,
-      y: a.y + (b.y - a.y) * t,
-      angle: Math.atan2(b.y - a.y, b.x - a.x),
-    };
+    out.x = a.x + (b.x - a.x) * t;
+    out.y = a.y + (b.y - a.y) * t;
+  }
+
+  /** 里程 d 处的朝向（弧度），不分配对象 */
+  angleAt(d: number): number {
+    let dd = d % this.total;
+    if (dd < 0) dd += this.total;
+    const i = this.segmentAt(dd);
+    const a = this.points[i];
+    const b = this.points[i + 1];
+    return Math.atan2(b.y - a.y, b.x - a.x);
+  }
+
+  private segmentAt(dd: number): number {
+    let i = 0;
+    while (i < this.cum.length - 2 && this.cum[i + 1] < dd) i++;
+    return i;
   }
 }

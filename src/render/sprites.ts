@@ -235,17 +235,17 @@ export function drawMonster(
     }
   }
 
-  // 身体：径向渐变果冻感
-  const grad = ctx.createRadialGradient(x - r * 0.35, by - r * 0.4 * tall, r * 0.15, x, by, r * 1.15 * tall);
-  grad.addColorStop(0, lighten(skin.body));
-  grad.addColorStop(1, skin.body);
-  ctx.fillStyle = grad;
+  // 身体：径向渐变果冻感。渐变在局部坐标（身体中心为原点）下缓存，平移后绘制
+  ctx.save();
+  ctx.translate(x, by);
+  ctx.fillStyle = bodyGradient(ctx, skin, r, tall);
   ctx.beginPath();
-  ctx.ellipse(x, by, r * 0.96, r * tall, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, r * 0.96, r * tall, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.lineWidth = r * 0.15;
   ctx.strokeStyle = skin.dark;
   ctx.stroke();
+  ctx.restore();
 
   // 肚皮
   if (skin.kind !== 'spiky') {
@@ -344,6 +344,28 @@ export function drawMonster(
   ctx.stroke();
 
   ctx.restore();
+}
+
+/**
+ * 身体渐变缓存：按 皮肤对象 → 半径 分组。tall 由皮肤种类决定，所以不需要进键。
+ * 渐变使用局部坐标（原点为身体中心），调用前需已平移到身体中心。
+ */
+const bodyGradCache = new Map<MonsterSkin, Map<number, CanvasGradient>>();
+
+function bodyGradient(ctx: CanvasRenderingContext2D, skin: MonsterSkin, r: number, tall: number): CanvasGradient {
+  let byR = bodyGradCache.get(skin);
+  if (!byR) {
+    byR = new Map();
+    bodyGradCache.set(skin, byR);
+  }
+  let g = byR.get(r);
+  if (!g) {
+    g = ctx.createRadialGradient(-r * 0.35, -r * 0.4 * tall, r * 0.15, 0, 0, r * 1.15 * tall);
+    g.addColorStop(0, lighten(skin.body));
+    g.addColorStop(1, skin.body);
+    byR.set(r, g);
+  }
+  return g;
 }
 
 /** 颜色提亮：把 #rrggbb 变亮一档，用于渐变高光侧 */

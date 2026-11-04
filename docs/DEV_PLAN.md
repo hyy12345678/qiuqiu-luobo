@@ -42,8 +42,8 @@
 
 | 编号 | 任务 | 涉及文件 | 验收标准 |
 |------|------|----------|----------|
-| **T-09** | 减少每帧分配。目前子弹、飘字每次都 `new`；`BattleScene.render` 每帧复制并排序 `obstacles`；`allTargets` 每次调用都新建数组。先用 Chrome Performance 面板测一下，再决定是否做对象池。 | `battle/entities/Bullet.ts`、`scenes/BattleScene.ts`、`battle/effects.ts` | 战斗中 60 秒的 GC 次数有明确的前后对比数据。 |
-| **T-10** | 把 `click-test.cjs` 的 Chrome 路径改为可配置（环境变量），目前写死了 macOS 路径。 | `scripts/click-test.cjs` | 设置 `CHROME_PATH` 后可在其他系统运行。 |
+| **T-09** ✅ | 减少每帧分配（2026-11-04 完成：分配量 109.7 MB → 73.0 MB，见 PROGRESS 验证记录）。目前子弹、飘字每次都 `new`；`BattleScene.render` 每帧复制并排序 `obstacles`；`allTargets` 每次调用都新建数组。先用 Chrome Performance 面板测一下，再决定是否做对象池。 | `battle/entities/Bullet.ts`、`scenes/BattleScene.ts`、`battle/effects.ts` | 战斗中 60 秒的 GC 次数有明确的前后对比数据。 |
+| **T-10** ✅ | 把 `click-test.cjs` 的 Chrome 路径改为可配置（已完成：读取 `CHROME_PATH`，未设置时按平台取默认路径）（环境变量），目前写死了 macOS 路径。 | `scripts/click-test.cjs` | 设置 `CHROME_PATH` 后可在其他系统运行。 |
 | **T-11** | 补充逻辑单元测试（塔升级倍率、售价返还、提前召唤奖励、`WaveManager.tryCallNext`）。目前只有关卡级冒烟测试，战斗规则没有直接覆盖。 | `scripts/` 或新增 `tests/` | 测试覆盖上述规则。（需要用户明确要求后再做，见项目约定。） |
 
 ### P3：后续扩展（来自 PLAN 第十节，本期不做）
@@ -63,7 +63,7 @@
 | v1.0（已完成） | PLAN M0–M4 | 基线 commit `723a02b` |
 | **v1.1**（已完成） | T-01、T-02、T-03、T-04；D-1 确定 | 五种塔可在对应关卡建造；`npm run typecheck`、`build`、`test:smoke`、`test:click` 全部通过 |
 | v1.2（部分完成，`b2d9220`） | T-05、T-06、T-08 已完成；T-07 待真机 | 真机记录齐全；爆爆虫与 Boss 行为符合 PLAN |
-| v1.3 | T-09、T-10、T-11 | 有性能对比数据；测试覆盖战斗规则 |
+| v1.3（部分完成） | T-09、T-10 已完成；T-11 未做，等待用户明确要求 | 有性能对比数据；测试覆盖战斗规则 |
 
 每个版本结束时更新 PROGRESS.md 中的里程碑表和验证记录。
 

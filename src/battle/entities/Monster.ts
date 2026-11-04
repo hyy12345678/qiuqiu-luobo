@@ -38,7 +38,7 @@ export class Monster implements CombatTarget {
   }
 
   get angle(): number {
-    return this.path.getPos(Math.min(this.dist, this.path.total)).angle;
+    return this.path.angleAt(Math.min(this.dist, this.path.total));
   }
 
   update(dt: number): void {
@@ -50,7 +50,7 @@ export class Monster implements CombatTarget {
     if (this.flash > 0) this.flash -= dt;
     if (this.slowT > 0) this.slowT -= dt;
     if (this.staggerT > 0) this.staggerT -= dt;
-    this.pos = this.path.getPos(Math.min(this.dist, this.path.total));
+    this.path.sampleInto(Math.min(this.dist, this.path.total), this.pos);
     if (this.dist >= this.path.total && !this.dead) {
       this.dead = true;
       bus.emit('monster:escaped', { damage: this.type.damage });

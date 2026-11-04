@@ -24,6 +24,12 @@ export class Tower {
   level = 1;
   invested = 0;
   private cooldown = 0;
+  /** 索敌结果的复用缓冲区，避免每次索敌新建数组 */
+  private monsterBuf: Monster[] = [];
+  private obstacleBuf: Obstacle[] = [];
+  /** 静态渐变缓存（塔位置固定，每帧重建渐变对象没有必要） */
+  private waterGrad: CanvasGradient | null = null;
+  private glowGrad: CanvasGradient | null = null;
   private fireAnim = 0;
   private spin = Math.random() * TAU;
   private pulseT = 0;
@@ -154,24 +160,26 @@ export class Tower {
     }
   }
 
-  /** 射程内走得最远优先 */
+  /** 射程内走得最远优先（结果写入本塔的复用缓冲区） */
   private monstersInRange(monsters: Monster[]): Monster[] {
-    const inRange = monsters.filter((m) => {
-      if (m.dead) return false;
-      return Math.hypot(m.pos.x - this.x, m.pos.y - this.y) <= this.range;
-    });
-    inRange.sort((a, b) => b.dist - a.dist);
-    return inRange;
+    const buf = this.monsterBuf;
+    buf.length = 0;
+    for (const m of monsters) {
+      if (!m.dead && Math.hypot(m.pos.x - this.x, m.pos.y - this.y) <= this.range) buf.push(m);
+    }
+    buf.sort((a, b) => b.dist - a.dist);
+    return buf;
   }
 
-  /** 没怪时打最近的道具 */
+  /** 没怪时打最近的道具（结果写入本塔的复用缓冲区） */
   private obstaclesInRange(obstacles: Obstacle[]): Obstacle[] {
-    const inRange = obstacles.filter((o) => {
-      if (o.dead) return false;
-      return Math.hypot(o.pos.x - this.x, o.pos.y - this.y) <= this.range;
-    });
-    inRange.sort((a, b) => Math.hypot(a.pos.x - this.x, a.pos.y - this.y) - Math.hypot(b.pos.x - this.x, b.pos.y - this.y));
-    return inRange;
+    const buf = this.obstacleBuf;
+    buf.length = 0;
+    for (const o of obstacles) {
+      if (!o.dead && Math.hypot(o.pos.x - this.x, o.pos.y - this.y) <= this.range) buf.push(o);
+    }
+    buf.sort((a, b) => Math.hypot(a.pos.x - this.x, a.pos.y - this.y) - Math.hypot(b.pos.x - this.x, b.pos.y - this.y));
+    return buf;
   }
 
   render(ctx: CanvasRenderingContext2D): void {
@@ -258,10 +266,13 @@ export class Tower {
     ctx.save();
     glassPath();
     ctx.clip();
-    const water = ctx.createLinearGradient(0, y - 8, 0, y + 10);
-    water.addColorStop(0, '#6fd0f5');
-    water.addColorStop(1, '#2f96dd');
-    ctx.fillStyle = water;
+    if (!this.waterGrad) {
+      const water = ctx.createLinearGradient(0, y - 8, 0, y + 10);
+      water.addColorStop(0, '#6fd0f5');
+      water.addColorStop(1, '#2f96dd');
+      this.waterGrad = water;
+    }
+    ctx.fillStyle = this.waterGrad;
     ctx.fillRect(x - 18, y - 6, 36, 18);
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,255,255,0.75)';
@@ -304,10 +315,13 @@ export class Tower {
       ctx.stroke();
     }
     // 光晕
-    const glow = ctx.createRadialGradient(x, y - 22, 4, x, y - 22, 30);
-    glow.addColorStop(0, 'rgba(160,220,255,0.55)');
-    glow.addColorStop(1, 'rgba(160,220,255,0)');
-    ctx.fillStyle = glow;
+    if (!this.glowGrad) {
+      const glow = ctx.createRadialGradient(x, y - 22, 4, x, y - 22, 30);
+      glow.addColorStop(0, 'rgba(160,220,255,0.55)');
+      glow.addColorStop(1, 'rgba(160,220,255,0)');
+      this.glowGrad = glow;
+    }
+    ctx.fillStyle = this.glowGrad;
     ctx.beginPath();
     ctx.arc(x, y - 22, 30, 0, TAU);
     ctx.fill();

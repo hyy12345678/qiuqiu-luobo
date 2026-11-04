@@ -1,6 +1,16 @@
 const puppeteer = require('puppeteer-core');
 
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// Chrome 可执行文件：优先读取 CHROME_PATH 环境变量，否则按系统使用常见安装路径
+const DEFAULT_CHROME = {
+  darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  linux: '/usr/bin/google-chrome',
+}[process.platform];
+const CHROME = process.env.CHROME_PATH || DEFAULT_CHROME;
+if (!CHROME || !require('fs').existsSync(CHROME)) {
+  console.error(`找不到 Chrome：${CHROME || '(未知平台)'}\n请设置环境变量 CHROME_PATH 指向 Chrome 可执行文件。`);
+  process.exit(2);
+}
 // 用法: node scripts/click-test.cjs [url]  默认测本地 dist/index.html
 const URL = process.argv[2] || 'file://' + require('path').resolve(__dirname, '../dist/index.html');
 const SAVE_KEY = 'qqlb-save-v1';

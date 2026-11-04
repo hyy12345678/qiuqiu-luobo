@@ -30,6 +30,16 @@ import { save } from '../save/SaveManager';
 import { audio } from '../audio/AudioManager';
 
 const BANNER_DUR = 1.9;
+
+/** 原地删除不满足 keep 的元素，保持数组引用不变且不分配新数组 */
+function compactInPlace<T>(arr: T[], keep: (x: T) => boolean): void {
+  let n = 0;
+  for (let i = 0; i < arr.length; i++) {
+    const x = arr[i];
+    if (keep(x)) arr[n++] = x;
+  }
+  arr.length = n;
+}
 const HEAL_AMOUNT = 25;
 const HEAL_RADIUS = 90;
 const HEAL_INTERVAL = 2.5;
@@ -75,6 +85,10 @@ export class BattleScene implements Scene {
   private buildConfirmBtn: HTMLButtonElement | null = null;
   private selectedTower: Tower | null = null;
   private renderList: Monster[] = [];
+  /** 障碍物按 y 排序后的绘制顺序（每帧复用） */
+  private obstacleDrawList: Obstacle[] = [];
+  /** 怪物 + 障碍物的合并列表（每帧复用，只能同步使用，不要保存引用） */
+  private targetBuf: CombatTarget[] = [];
   private offFns: Array<() => void> = [];
 
   // DOM refs
@@ -357,7 +371,7 @@ export class BattleScene implements Scene {
       }
     }
 
-    this.monsters = this.monsters.filter((m) => {
+    compactInPlace(this.monsters, (m) => {
       if (m.dead) this.healCd.delete(m);
       return !m.dead;
     });
@@ -366,7 +380,14 @@ export class BattleScene implements Scene {
     const ctx: TowerContext = {
       monsters: this.monsters,
       obstacles: this.obstacles,
-      allTargets: (): CombatTarget[] => [...this.monsters, ...this.obstacles],
+      // 返回共享缓冲区：调用方只能同步遍历，不能保存引用
+      allTargets: (): CombatTarget[] => {
+        const buf = this.targetBuf;
+        buf.length = 0;
+        for (const m of this.monsters) buf.push(m);
+        for (const o of this.obstacles) buf.push(o);
+        return buf;
+      },
       spawnBullet: (b): void => {
         this.projectiles.push(b);
       },
@@ -384,7 +405,7 @@ export class BattleScene implements Scene {
     };
     for (const t of this.towers) t.update(dt, ctx);
     for (const p of this.projectiles) p.update(dt);
-    this.projectiles = this.projectiles.filter((p) => !p.dead);
+    compactInPlace(this.projectiles, (p) => !p.dead);
 
     // 障碍物：受击闪光衰减 + 打碎奖励
     for (const o of this.obstacles) {
@@ -398,7 +419,7 @@ export class BattleScene implements Scene {
         audio.play('coin');
       }
     }
-    this.obstacles = this.obstacles.filter((o) => !o.dead);
+    compactInPlace(this.obstacles, (o) => !o.dead);
 
     this.fx.update(dt);
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 1.4);
@@ -446,7 +467,11 @@ export class BattleScene implements Scene {
     }
     ctx.restore();
 
-    for (const o of [...this.obstacles].sort((a, b) => a.pos.y - b.pos.y)) o.render(ctx);
+    const obs = this.obstacleDrawList;
+    obs.length = 0;
+    for (const o of this.obstacles) obs.push(o);
+    obs.sort((a, b) => a.pos.y - b.pos.y);
+    for (const o of obs) o.render(ctx);
     for (const t of this.towers) t.render(ctx);
     if (this.selectedTower) this.selectedTower.renderRange(ctx);
 
