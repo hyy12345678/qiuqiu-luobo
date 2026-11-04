@@ -8,8 +8,15 @@
 
 - **六种塔**：瓶子速射 / 冰冻减速 / 多重箭 / 太阳花灼烧 / 风扇穿透 / 火箭溅射（均可升 3 级）
 - **六种怪**：小兵、飞毛腿、铁壳、医生怪（治疗友军）、爆爆虫、Boss 萝卜巨兽
-- **五个关卡**：教学关、双入口汇流、宝箱经济关、长路迷宫关、Boss 决战
+- **五个关卡**：教学关、双入口汇流、宝箱经济关、长路迷宫关、Boss 决战。塔逐关解锁：第 1 关仅瓶子塔，第 2 关加冰冻星与多重箭，第 3 关加太阳花，第 4 关加风扇与火箭
 - 波间倒计时时点击波次条可**提前召唤换金币**；支持 2x 倍速、暂停、切后台自动暂停
+
+## 文档
+
+- [docs/PROGRESS.md](docs/PROGRESS.md)：进度跟踪、验证记录、已知问题（接手先看这个）
+- [docs/DEV_PLAN.md](docs/DEV_PLAN.md)：后续开发计划与待办
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：架构与设计说明
+- [PLAN.md](PLAN.md)：v1.0 原始规划（历史快照）
 
 ## 本地开发
 
@@ -24,15 +31,13 @@ npm run dev -- --host    # 开放局域网访问，手机连同一 WiFi 后真�
 ```bash
 npm run typecheck        # TS 类型检查
 npm run build            # 产出单文件 dist/index.html
-node /tmp/qqlb-smoke.cjs # 逻辑冒烟测试（见下）
-npm run test:click       # 无头浏览器真实点击回归（需本机 Chrome）
+npm run test:smoke       # 逻辑冒烟测试（见下）
+npm run test:click       # 无头浏览器真实点击回归（需本机 Chrome，先 build）
 ```
 
-冒烟测试覆盖每关的路径长度/边界、障碍物合法性、波次时间线与存档解锁逻辑：
+冒烟测试覆盖每关的路径长度/边界、障碍物合法性、波次时间线、塔种解锁与存档解锁逻辑。
 
-```bash
-npx esbuild scripts/smoke.ts --bundle --platform=node --format=cjs --outfile=/tmp/qqlb-smoke.cjs && node /tmp/qqlb-smoke.cjs
-```
+调试：在地址后加 `?debug`（如 `http://localhost:5173/?debug`）会显示左上角 FPS 标签，正式版本不显示。
 
 `test:click` 用 puppeteer-core 驱动本机 Chrome，模拟「选关 → 点草地建塔 → 点路面不误弹」的真实指针交互，专门捕捉逻辑冒烟测不到的事件穿透/命中问题（如全屏 DOM 遮罩吃掉 canvas 点击导致无法建塔）。也可传 URL 测线上：`node scripts/click-test.cjs https://你的域名/`。
 

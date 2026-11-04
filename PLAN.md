@@ -2,6 +2,7 @@
 
 > 一个致敬《保卫萝卜》玩法的 H5 网页塔防游戏。使用原创美术与原创名称，玩法机制参考经典塔防。
 > 文档版本：v1.0（2026-08-26）
+> 注：本文件是 v1.0 的规划快照。当前进度、与代码的偏差和后续计划见 [docs/PROGRESS.md](./docs/PROGRESS.md) 与 [docs/DEV_PLAN.md](./docs/DEV_PLAN.md)。
 
 ---
 
@@ -153,6 +154,8 @@ input     Pointer Events 统一处理触摸/鼠标，坐标换算到设计分辨
 - **坐标系统**：内部一律用设计分辨率坐标（1280×720），Renderer 统一做缩放变换和 DPR 适配，逻辑代码完全不感知屏幕尺寸。
 
 ### 4.2 目录结构
+
+> 以下是 v1.0 规划时的设计。实际实现有几处不同：UI 没有单独拆出 `ui/` 目录，而是写在 `BattleScene.ts` 中；关卡使用 TypeScript 对象（类型为 `LevelDef`），没有使用 JSON；没有 `ObjectPool.ts`、`Carrot.ts`，素材目录 `public/assets/` 也不存在。原因是 v1.0 优先保证玩法跑通，并保留类型检查。具体差异见 [docs/PROGRESS.md 第五节](./docs/PROGRESS.md#五文档与代码偏差)，实际目录见 [docs/ARCHITECTURE.md 第二节](./docs/ARCHITECTURE.md)。
 
 ```
 qiuqiu-luobo/
