@@ -13,6 +13,10 @@ export interface MonsterType {
   damage: number;
   /** 减速抗性（0~1），Boss 用 */
   slowResist?: number;
+  /** 死亡时爆炸：对半径内其他存活怪物造成伤害（可连锁） */
+  deathBlast?: { radius: number; damage: number };
+  /** 受击硬直：受击后 dur 秒内速度乘以 speedMul（不影响死亡判定） */
+  hitStagger?: { dur: number; speedMul: number };
   skin: MonsterSkin;
 }
 
@@ -41,11 +45,13 @@ export const MONSTERS: Record<string, MonsterType> = {
   bomber: {
     id: 'bomber', name: '爆爆虫',
     hp: 85, speed: 92, bounty: 15, radius: 19, damage: 2,
+    deathBlast: { radius: 85, damage: 50 },
     skin: { body: '#ff6b4a', dark: '#c23a22', kind: 'round' },
   },
   boss: {
     id: 'boss', name: '萝卜巨兽',
     hp: 3200, speed: 42, bounty: 200, radius: 40, damage: 3, slowResist: 0.5,
+    hitStagger: { dur: 0.2, speedMul: 0.3 },
     skin: { body: '#8e5bd6', dark: '#4d2b96', kind: 'boss' },
   },
 };

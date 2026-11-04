@@ -19,6 +19,8 @@ export class Monster implements CombatTarget {
   /** 减速剩余时间 / 减速比率 */
   slowT = 0;
   slowRatio = 1;
+  /** 受击硬直剩余时间（仅 type.hitStagger 存在时生效） */
+  staggerT = 0;
   /** 当前帧位置（update 时刷新，供索敌与子弹使用） */
   pos = { x: 0, y: 0 };
   get radius(): number {
@@ -40,11 +42,14 @@ export class Monster implements CombatTarget {
   }
 
   update(dt: number): void {
-    const effSpeed = this.type.speed * (this.slowT > 0 ? this.slowRatio : 1);
+    const slow = this.slowT > 0 ? this.slowRatio : 1;
+    const stagger = this.staggerT > 0 && this.type.hitStagger ? this.type.hitStagger.speedMul : 1;
+    const effSpeed = this.type.speed * slow * stagger;
     this.dist += effSpeed * dt;
     this.phase += dt * (this.slowT > 0 ? 5 : 9);
     if (this.flash > 0) this.flash -= dt;
     if (this.slowT > 0) this.slowT -= dt;
+    if (this.staggerT > 0) this.staggerT -= dt;
     this.pos = this.path.getPos(Math.min(this.dist, this.path.total));
     if (this.dist >= this.path.total && !this.dead) {
       this.dead = true;
@@ -63,7 +68,10 @@ export class Monster implements CombatTarget {
         x: this.pos.x,
         y: this.pos.y,
         radius: this.type.radius,
+        blast: this.type.deathBlast,
       });
+    } else if (this.type.hitStagger) {
+      this.staggerT = this.type.hitStagger.dur;
     }
   }
 
@@ -83,6 +91,23 @@ export class Monster implements CombatTarget {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
+    if (this.staggerT > 0 && this.type.hitStagger) {
+      // 硬直时沿脚底做轻微压扁，表现受击的沉重感
+      const k = this.staggerT / this.type.hitStagger.dur;
+      const sq = Math.sin(k * Math.PI) * 0.08;
+      const { x, y } = this.pos;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(1 + sq, 1 - sq);
+      ctx.translate(-x, -y);
+      this.renderBody(ctx);
+      ctx.restore();
+    } else {
+      this.renderBody(ctx);
+    }
+  }
+
+  private renderBody(ctx: CanvasRenderingContext2D): void {
     const { x, y } = this.pos;
     const r = this.radius;
     drawMonster(ctx, x, y - 4, r, this.type.skin, this.phase, this.angle);

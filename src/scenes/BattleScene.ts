@@ -14,6 +14,8 @@ import type { TowerContext } from '../battle/entities/Tower';
 import { Bullet, FanBlade } from '../battle/entities/Bullet';
 import type { CombatTarget } from '../battle/target';
 import { Effects } from '../battle/effects';
+import { applyBlast } from '../battle/explode';
+import type { Blast } from '../battle/explode';
 import { buildGround } from '../render/ground';
 import { drawCarrot } from '../render/sprites';
 import type { CarrotMood } from '../render/sprites';
@@ -119,12 +121,19 @@ export class BattleScene implements Scene {
 
     // ---- 事件订阅 ----
     this.offFns.push(
-      bus.on<{ bounty: number; x: number; y: number; radius: number }>('monster:killed', (p) => {
+      bus.on<{ bounty: number; x: number; y: number; radius: number; blast?: Blast }>('monster:killed', (p) => {
         this.economy.add(p.bounty);
         this.fx.floatText(p.x, p.y - p.radius * 1.6, `+${p.bounty}`);
         this.fx.poof(p.x, p.y - p.radius * 0.5);
         audio.play('die');
         audio.play('coin');
+        if (p.blast) {
+          // 爆爆虫死亡爆炸：波及周围怪物，被炸死的怪物会再次进入本回调（连锁）
+          applyBlast(p.x, p.y, p.blast, this.monsters);
+          this.fx.poof(p.x, p.y, 34, '#ff8a4c');
+          this.shake = Math.max(this.shake, 0.2);
+          audio.play('explode');
+        }
         this.refreshHud();
       }),
       bus.on<{ damage: number }>('monster:escaped', (p) => {
