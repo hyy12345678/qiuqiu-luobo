@@ -6,6 +6,7 @@ export const LEVEL_3: LevelDef = {
   name: '财宝园',
   startGold: 220,
   carrotHp: 10,
+  unlockedTowers: ['bottle', 'frost', 'multishot', 'sunflower'],
   paths: [
     [
       [-1, 4],

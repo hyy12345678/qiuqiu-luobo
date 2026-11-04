@@ -8,6 +8,9 @@ export class Game {
   static readonly STEP = 1 / 60;
   /** 单帧最多补的步数，防止切后台回来后螺旋追赶 */
   private static readonly MAX_STEPS = 12;
+  /** 用 ?debug 打开 FPS 标签（如 http://localhost:5173/?debug） */
+  private static readonly SHOW_FPS =
+    typeof location !== 'undefined' && new URLSearchParams(location.search).has('debug');
 
   private rafId = 0;
   private lastT = -1;
@@ -70,7 +73,11 @@ export class Game {
     ctx.clearRect(0, 0, DESIGN_W, DESIGN_H);
     scene?.render(ctx);
 
-    // M0 调试信息：验收后可关
+    if (Game.SHOW_FPS) this.drawFpsBadge(ctx);
+  }
+
+  /** 调试用 FPS 标签：仅在 URL 带 ?debug 时显示，正式版本不出现 */
+  private drawFpsBadge(ctx: CanvasRenderingContext2D): void {
     const label = `FPS ${this.fps}`;
     ctx.font = 'bold 16px system-ui, sans-serif';
     const lw = ctx.measureText(label).width;

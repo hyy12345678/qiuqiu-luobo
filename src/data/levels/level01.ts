@@ -6,6 +6,7 @@ export const LEVEL_1: LevelDef = {
   name: '青草原',
   startGold: 300,
   carrotHp: 10,
+  unlockedTowers: ['bottle'],
   paths: [
     [
       [-1, 1],

@@ -5,9 +5,11 @@ import { WaveManager } from '../src/battle/WaveManager';
 import type { WaveDef } from '../src/battle/WaveManager';
 import { ALL_LEVELS } from '../src/data/levels';
 import { OBSTACLES } from '../src/data/obstacles';
+import { TOWER_TYPES } from '../src/data/towers';
 import { save } from '../src/save/SaveManager';
 
 let failed = 0;
+let prevUnlock: string[] = [];
 function check(name: string, cond: boolean, detail = ''): void {
   if (!cond) failed++;
   console.log(`${cond ? '✅' : '❌'} ${name}${detail ? ` — ${detail}` : ''}`);
@@ -46,6 +48,15 @@ for (const lv of ALL_LEVELS) {
     keys.add(o.row * 16 + o.col);
   }
   check('障碍物位置合法且不重叠', obOk, `${lv.obstacles.length} 个道具`);
+
+  const unlock = lv.unlockedTowers as string[];
+  const unlockValid =
+    unlock.every((k) => k in TOWER_TYPES) &&
+    unlock.includes('bottle') &&
+    new Set(unlock).size === unlock.length;
+  check('解锁塔种合法、无重复且包含瓶子塔', unlockValid, unlock.join(','));
+  check('解锁塔种逐关只增不减', prevUnlock.every((k) => unlock.includes(k)));
+  prevUnlock = unlock;
 
   const expected = lv.waves.reduce((n, w) => n + w.entries.reduce((k, en) => k + en.count, 0), 0);
   let spawned = 0;

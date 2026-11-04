@@ -6,6 +6,7 @@ export const LEVEL_5: LevelDef = {
   name: '巨兽巢穴',
   startGold: 350,
   carrotHp: 10,
+  unlockedTowers: ['bottle', 'frost', 'multishot', 'sunflower', 'fan', 'rocket'],
   paths: [
     [
       [-1, 7],

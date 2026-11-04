@@ -20,6 +20,7 @@ import type { CarrotMood } from '../render/sprites';
 import { roundRectPath } from '../render/decor';
 import { DESIGN_W, DESIGN_H } from '../render/Renderer';
 import { TOWER_TYPES, upgradeCost } from '../data/towers';
+import type { TowerKind } from '../data/towers';
 import { monsterById } from '../data/monsters';
 import { OBSTACLES } from '../data/obstacles';
 import { ALL_LEVELS, selection } from '../data/levels';
@@ -30,6 +31,15 @@ const BANNER_DUR = 1.9;
 const HEAL_AMOUNT = 25;
 const HEAL_RADIUS = 90;
 const HEAL_INTERVAL = 2.5;
+
+const TOWER_ICON: Record<TowerKind, string> = {
+  bottle: '💧',
+  frost: '❄️',
+  multishot: '🏹',
+  sunflower: '🌻',
+  fan: '🌀',
+  rocket: '🚀',
+};
 
 /** 战斗场景：读 selection.current 关卡配置，支持多路径 / 音效 / 存档 */
 export class BattleScene implements Scene {
@@ -57,6 +67,10 @@ export class BattleScene implements Scene {
   private lastWaveSeen = 0;
 
   private selectedCell: { col: number; row: number } | null = null;
+  /** 建造面板当前选中的塔种（决定射程预览与建造费用） */
+  private buildKind: TowerKind = 'bottle';
+  private buildOptionBtns = new Map<TowerKind, HTMLButtonElement>();
+  private buildConfirmBtn: HTMLButtonElement | null = null;
   private selectedTower: Tower | null = null;
   private renderList: Monster[] = [];
   private offFns: Array<() => void> = [];
@@ -205,16 +219,43 @@ export class BattleScene implements Scene {
     return b;
   }
 
+  /** 建造面板：列出本关已解锁的塔种，点选后显示射程预览，再点建造 */
   private openBuildPanel(): void {
-    const cost = TOWER_TYPES.bottle.cost;
     this.dockBar.innerHTML = '';
-    const buildBtn = this.dockButton(`💧 建造瓶子塔（${cost}）`, '');
-    buildBtn.addEventListener('click', () => this.buildAtSelected());
+    this.buildKind = 'bottle';
+    this.buildOptionBtns.clear();
+
+    for (const kind of this.level.unlockedTowers) {
+      const type = TOWER_TYPES[kind];
+      const btn = this.dockButton(`${TOWER_ICON[kind]} ${type.name} ${type.cost}`, 'btn-tower');
+      btn.title = `${type.desc}｜射程 ${type.range}`;
+      btn.addEventListener('click', () => {
+        this.buildKind = kind;
+        audio.play('click');
+        this.refreshBuildPanel();
+      });
+      this.buildOptionBtns.set(kind, btn);
+    }
+
+    this.buildConfirmBtn = this.dockButton('', '');
+    this.buildConfirmBtn.addEventListener('click', () => this.buildAtSelected());
     const cancelBtn = this.dockButton('取消', 'btn-cancel');
     cancelBtn.addEventListener('click', () => this.clearSelection());
-    this.dockBar.append(buildBtn, cancelBtn);
+    this.dockBar.append(...this.buildOptionBtns.values(), this.buildConfirmBtn, cancelBtn);
     this.dockBar.hidden = false;
+    this.refreshBuildPanel();
     this.refreshHud();
+  }
+
+  /** 同步建造面板：选中态、确认按钮文字与可负担状态 */
+  private refreshBuildPanel(): void {
+    for (const [kind, btn] of this.buildOptionBtns) {
+      btn.classList.toggle('active', kind === this.buildKind);
+    }
+    if (!this.buildConfirmBtn) return;
+    const type = TOWER_TYPES[this.buildKind];
+    this.buildConfirmBtn.textContent = `✔ 建造（${type.cost}）`;
+    this.buildConfirmBtn.disabled = !this.economy.canAfford(type.cost);
   }
 
   private openTowerPanel(t: Tower): void {
@@ -379,7 +420,7 @@ export class BattleScene implements Scene {
       ctx.fillStyle = 'rgba(120,210,255,0.10)';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(c.x, c.y, TOWER_TYPES.bottle.range, 0, Math.PI * 2);
+      ctx.arc(c.x, c.y, TOWER_TYPES[this.buildKind].range, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
       ctx.restore();
@@ -489,10 +530,12 @@ export class BattleScene implements Scene {
 
   private buildAtSelected(): void {
     if (!this.selectedCell) return;
-    if (!this.economy.spend(TOWER_TYPES.bottle.cost)) return;
+    const type = TOWER_TYPES[this.buildKind];
+    if (!this.level.unlockedTowers.includes(this.buildKind)) return;
+    if (!this.economy.spend(type.cost)) return;
     const c = this.grid.cellCenter(this.selectedCell.col, this.selectedCell.row);
-    const tower = new Tower(this.selectedCell.col, this.selectedCell.row, c.x, c.y, TOWER_TYPES.bottle);
-    tower.invested = TOWER_TYPES.bottle.cost;
+    const tower = new Tower(this.selectedCell.col, this.selectedCell.row, c.x, c.y, type);
+    tower.invested = type.cost;
     this.towers.push(tower);
     this.fx.poof(c.x, c.y + 8, 22, '#e8d9b8');
     audio.play('build');
@@ -558,10 +601,7 @@ export class BattleScene implements Scene {
   private refreshHud(): void {
     this.chipGold.textContent = `🪙 ${this.economy.gold}`;
     this.towerPanelRefresh?.();
-    if (!this.dockBar.hidden && this.selectedCell) {
-      const buildBtn = this.dockBar.querySelector('button');
-      if (buildBtn) buildBtn.disabled = !this.economy.canAfford(TOWER_TYPES.bottle.cost);
-    }
+    if (!this.dockBar.hidden && this.selectedCell) this.refreshBuildPanel();
   }
 
   private refreshWaveChip(): void {

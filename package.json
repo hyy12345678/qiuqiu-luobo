@@ -8,9 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test:smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/qqlb-smoke.cjs --log-level=warning && node node_modules/.cache/qqlb-smoke.cjs",
     "test:click": "node scripts/click-test.cjs"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "puppeteer-core": "^25.9.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.0",
