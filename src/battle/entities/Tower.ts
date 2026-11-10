@@ -1,11 +1,14 @@
 import { DMG_MUL, RANGE_MUL, CD_MUL } from '../../data/towers';
-import type { TowerType } from '../../data/towers';
+import type { TowerType, BranchDef } from '../../data/towers';
 import type { Monster } from './Monster';
 import type { Obstacle } from './Obstacle';
 import type { CombatTarget } from '../target';
 import { Bullet, FanBlade } from './Bullet';
 import { audio } from '../../audio/AudioManager';
 import type { SfxName } from '../../audio/AudioManager';
+import { enterGround, enterUpright } from '../../render/projection';
+import { drawTowerFace } from '../../render/sprites';
+import type { TowerMood } from '../../render/sprites';
 
 export interface TowerContext {
   monsters: Monster[];
@@ -18,6 +21,26 @@ export interface TowerContext {
 }
 
 const TAU = Math.PI * 2;
+
+/** 三个等级的石台配色：木台 → 青铜台 → 金台 */
+const BASE_PALETTE: ReadonlyArray<{ outer: string; mid: string; inner: string; rim: string | null }> = [
+  { outer: '#8a5c33', mid: '#c59a63', inner: '#dcc08e', rim: null },
+  { outer: '#5f6b73', mid: '#9aa6ad', inner: '#d7dee2', rim: '#c9a24a' },
+  { outer: '#9a6b14', mid: '#e0b33a', inner: '#fff0a8', rim: '#ffd54f' },
+];
+/** 塔身按等级放大（以脚下为锚点，脚始终踩在石台上） */
+const TIER_SCALE = [1, 1.14, 1.3];
+/** 待机动作的时长（秒） */
+const IDLE_DUR = 0.6;
+/** 每种塔的属性色，用于 Lv2 起的地面光晕 */
+const ACCENT: Record<string, string> = {
+  bottle: '#4fc3f7',
+  frost: '#90dcff',
+  multishot: '#8bc34a',
+  sunflower: '#ffca28',
+  fan: '#4db6ac',
+  rocket: '#ff7043',
+};
 
 /** 塔：六种行为 × 三级成长。数值由类型配置乘以等级倍率表得出 */
 export class Tower {
@@ -33,6 +56,20 @@ export class Tower {
   private fireAnim = 0;
   private spin = Math.random() * TAU;
   private pulseT = 0;
+  /** 升级弹跳剩余量（1 → 0） */
+  private popT = 0;
+  /** 眨眼计时：倒计时到 0 时闭眼一次 */
+  private blinkCd = 1 + Math.random() * 3;
+  private blinkT = 0;
+  /** 本帧绘制用的表情，render 开头刷新 */
+  private curMood: TowerMood = 'happy';
+  /** 待机动作：射程内没有怪时，每隔几秒做一次小跳或晃动 */
+  private idleCd = 2 + Math.random() * 2;
+  private idleT = 0;
+  private idleKind: 'hop' | 'wiggle' = 'hop';
+  /** 等级光晕的渐变缓存，等级变化时重建 */
+  private tierGlow: CanvasGradient | null = null;
+  private tierGlowLevel = 0;
 
   constructor(
     public col: number,
@@ -42,19 +79,55 @@ export class Tower {
     public type: TowerType,
   ) {}
 
+  /** Lv3 时选定的分支（Lv1、Lv2 为 null） */
+  branch: BranchDef | null = null;
+
   get damage(): number {
-    return this.type.damage * DMG_MUL[this.level - 1];
+    return this.type.damage * DMG_MUL[this.level - 1] * (this.branch?.dmgMul ?? 1);
   }
   get range(): number {
-    return this.type.range * RANGE_MUL[this.level - 1];
+    return this.type.range * RANGE_MUL[this.level - 1] * (this.branch?.rangeMul ?? 1);
   }
   get cd(): number {
-    return this.type.cooldown * CD_MUL[this.level - 1];
+    return this.type.cooldown * CD_MUL[this.level - 1] * (this.branch?.cdMul ?? 1);
+  }
+
+  /** 升级时调用：塔身弹跳一次 */
+  kickLevelUp(): void {
+    this.popT = 1;
   }
 
   update(dt: number, ctx: TowerContext): void {
     if (this.fireAnim > 0) this.fireAnim = Math.max(0, this.fireAnim - dt * 4.5);
     if (this.pulseT > 0) this.pulseT = Math.max(0, this.pulseT - dt * 2.2);
+    if (this.popT > 0) this.popT = Math.max(0, this.popT - dt * 2.5);
+    this.blinkCd -= dt;
+    if (this.blinkCd <= 0) {
+      this.blinkT = 0.15;
+      this.blinkCd = 2.5 + Math.random() * 2.5;
+    }
+    if (this.blinkT > 0) this.blinkT = Math.max(0, this.blinkT - dt);
+
+    // 待机：射程内有活着的怪就停下待机计时，否则每隔 4 到 8 秒做一次小动作
+    let engaged = false;
+    for (const m of ctx.monsters) {
+      if (!m.dead && Math.hypot(m.pos.x - this.x, m.pos.y - this.y) <= this.range) {
+        engaged = true;
+        break;
+      }
+    }
+    if (engaged) {
+      this.idleT = 0;
+      this.idleCd = 2 + Math.random() * 2;
+    } else {
+      this.idleCd -= dt;
+      if (this.idleCd <= 0 && this.idleT <= 0) {
+        this.idleT = IDLE_DUR;
+        this.idleKind = Math.random() < 0.5 ? 'hop' : 'wiggle';
+        this.idleCd = 4 + Math.random() * 4;
+      }
+    }
+    if (this.idleT > 0) this.idleT = Math.max(0, this.idleT - dt);
     this.spin += dt * (5 + this.fireAnim * 18);
 
     if (this.type.id === 'sunflower') {
@@ -82,13 +155,14 @@ export class Tower {
         this.fire(ctx, new Bullet({
           x: this.x, y: this.y - 46, target: primary,
           damage: this.damage, style: 'ice',
-          slow: { ratio: 0.6, dur: 2 },
+          slow: this.branch?.slow ?? { ratio: 0.6, dur: 2 },
+          splash: this.branchSplash(),
           targets: ctx.allTargets, onHit: ctx.onBulletHit,
         }));
         audio.play('shoot_ice');
         break;
       case 'multishot':
-        for (const t of combined.slice(0, 3)) {
+        for (const t of combined.slice(0, this.branch?.extraTargets ?? 3)) {
           ctx.spawnBullet(new Bullet({
             x: this.x, y: this.y - 40, target: t,
             damage: this.damage, style: 'arrow',
@@ -116,7 +190,7 @@ export class Tower {
         this.fire(ctx, new Bullet({
           x: this.x, y: this.y - 50, target: primary,
           damage: this.damage, style: 'rocket',
-          splash: { radius: 62 + this.level * 8, damage: this.damage * 0.7 },
+          splash: { radius: (62 + this.level * 8) * (this.branch?.splashRadiusMul ?? 1), damage: this.damage * 0.7 },
           targets: ctx.allTargets, onHit: ctx.onBulletHit,
         }));
         audio.play(SHOOT_SFX.rocket);
@@ -125,10 +199,17 @@ export class Tower {
         this.fire(ctx, new Bullet({
           x: this.x, y: this.y - 46, target: primary,
           damage: this.damage, style: 'drop',
+          splash: this.branchSplash(),
           targets: ctx.allTargets, onHit: ctx.onBulletHit,
         }));
         audio.play(SHOOT_SFX.bottle);
     }
+  }
+
+  /** 分支带来的命中溅射（没有该分支时为 undefined） */
+  private branchSplash(): { radius: number; damage: number } | undefined {
+    const s = this.branch?.splash;
+    return s ? { radius: s.radius, damage: this.damage * s.ratio } : undefined;
   }
 
   private fire(ctx: TowerContext, b: Bullet): void {
@@ -182,20 +263,59 @@ export class Tower {
     return buf;
   }
 
+  /** 深度排序用：塔身脚下的世界 y（石台中心略低于格子中心） */
+  get depthY(): number {
+    return this.y + 12;
+  }
+
   render(ctx: CanvasRenderingContext2D): void {
     const { x, y } = this;
     const f = this.fireAnim;
+    // 表情：眨眼优先，其次开火兴奋，平时开心
+    this.curMood = this.blinkT > 0 ? 'blink' : f > 0.3 ? 'excited' : 'happy';
 
-    // 石台（公共底座）
-    ctx.fillStyle = '#8a5c33';
+    // 地面部分：石台与等级小金点
+    ctx.save();
+    enterGround(ctx, x, y + 12);
+    // 接触阴影：塔脚贴地的一圈暗部，让塔“立”在地上
+    ctx.fillStyle = 'rgba(20,40,10,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 22, 40, 14, 0, 0, TAU);
+    ctx.fill();
+    // 等级光晕：Lv2 起在地面铺一圈属性色
+    if (this.level >= 2) {
+      if (this.tierGlowLevel !== this.level || !this.tierGlow) {
+        const alpha = this.level >= 3 ? 0.55 : 0.35;
+        const glow = ctx.createRadialGradient(x, y + 14, 6, x, y + 14, 60);
+        glow.addColorStop(0, withAlpha(ACCENT[this.type.id] ?? '#ffffff', alpha));
+        glow.addColorStop(1, withAlpha(ACCENT[this.type.id] ?? '#ffffff', 0));
+        this.tierGlow = glow;
+        this.tierGlowLevel = this.level;
+      }
+      ctx.fillStyle = this.tierGlow;
+      ctx.beginPath();
+      ctx.arc(x, y + 14, 60, 0, TAU);
+      ctx.fill();
+    }
+
+    // 石台（公共底座）：配色与金属边随等级变化
+    const pal = BASE_PALETTE[this.level - 1];
+    ctx.fillStyle = pal.outer;
     ctx.beginPath();
     ctx.ellipse(x, y + 18, 35, 14, 0, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = '#c59a63';
+    if (pal.rim) {
+      ctx.strokeStyle = pal.rim;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 18, 35, 14, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.fillStyle = pal.mid;
     ctx.beginPath();
     ctx.ellipse(x, y + 13, 31, 11, 0, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = '#dcc08e';
+    ctx.fillStyle = pal.inner;
     ctx.beginPath();
     ctx.ellipse(x, y + 11.5, 25, 8, 0, 0, TAU);
     ctx.fill();
@@ -212,9 +332,20 @@ export class Tower {
       ctx.stroke();
     }
 
+    ctx.restore();
+
+    // 直立部分：塔身按远近整体缩放
     ctx.save();
+    enterUpright(ctx, x, y + 12);
+    // 待机动作：小跳（向上弹 7px）或左右晃（±0.12 弧度），两者都是 0.6 秒的半个正弦
+    const p = this.idleT > 0 ? 1 - this.idleT / IDLE_DUR : 0;
+    const hop = this.idleT > 0 && this.idleKind === 'hop' ? Math.sin(p * Math.PI) * 7 : 0;
+    const tilt = this.idleT > 0 && this.idleKind === 'wiggle' ? Math.sin(p * Math.PI * 2) * 0.12 : 0;
+    ctx.translate(0, -hop);
     ctx.translate(x, y + 12);
-    ctx.scale(1 + f * 0.06, 1 - f * 0.09);
+    ctx.rotate(tilt);
+    const tier = TIER_SCALE[this.level - 1] * (1 + this.popT * 0.22);
+    ctx.scale(tier * (1 + f * 0.06), tier * (1 - f * 0.09));
     ctx.translate(-x, -(y + 12));
 
     switch (this.type.id) {
@@ -225,16 +356,36 @@ export class Tower {
       case 'fan': this.drawFan(ctx); break;
       case 'rocket': this.drawRocket(ctx, f); break;
     }
+    if (this.level >= 3) this.drawSparkles(ctx);
     ctx.restore();
 
     // 太阳花灼烧脉冲环
     if (this.pulseT > 0 && this.type.id === 'sunflower') {
       const k = 1 - this.pulseT;
+      ctx.save();
+      enterGround(ctx, x, y);
       ctx.strokeStyle = `rgba(255,200,60,${this.pulseT * 0.4})`;
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.arc(x, y, this.range * k, 0, TAU);
       ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Lv3 专属：三颗星光绕塔身缓慢旋转并闪烁 */
+  private drawSparkles(ctx: CanvasRenderingContext2D): void {
+    const { x, y } = this;
+    // 分支 B 的星光偏粉，分支 A 偏金
+    ctx.fillStyle = this.branch?.key === 'B' ? '#ffc6e6' : '#fff6c2';
+    for (let i = 0; i < 3; i++) {
+      const a = this.spin * 0.6 + (i / 3) * TAU;
+      const px = x + Math.cos(a) * 28;
+      const py = y - 30 + Math.sin(a) * 10;
+      const r = 3 + Math.sin(this.spin * 2 + i) * 1;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, TAU);
+      ctx.fill();
     }
   }
 
@@ -287,16 +438,7 @@ export class Tower {
     ctx.strokeStyle = '#7c4a1e';
     ctx.lineWidth = 2;
     ctx.strokeRect(x - 7, y - 45 - f * 2, 14, 10);
-    ctx.fillStyle = '#173a52';
-    ctx.beginPath();
-    ctx.arc(x - 5.5, y, 1.9, 0, TAU);
-    ctx.arc(x + 5.5, y, 1.9, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = '#173a52';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(x, y + 3.5, 3.4, 0.15 * Math.PI, 0.85 * Math.PI);
-    ctx.stroke();
+    drawTowerFace(ctx, x, y + 1, 10, this.curMood);
   }
 
   private drawFrost(ctx: CanvasRenderingContext2D): void {
@@ -345,12 +487,14 @@ export class Tower {
     }
     ctx.fillStyle = '#e8f7ff';
     ctx.beginPath();
-    ctx.arc(0, 0, 5, 0, TAU);
+    ctx.arc(0, 0, 12, 0, TAU);
     ctx.fill();
     ctx.strokeStyle = '#5db4e8';
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.restore();
+    // 脸画在雪花中心，不随雪花旋转
+    drawTowerFace(ctx, x, y - 22, 9, this.curMood);
   }
 
   private drawMultishot(ctx: CanvasRenderingContext2D): void {
@@ -389,10 +533,12 @@ export class Tower {
       ctx.fill();
       ctx.restore();
     }
-    // 握把
+    // 握把做成圆木球，上面是脸
     ctx.fillStyle = '#6f4423';
-    roundRectLocal(ctx, x - 5, y - 12, 10, 22, 4);
+    ctx.beginPath();
+    ctx.arc(x, y - 2, 11, 0, TAU);
     ctx.fill();
+    drawTowerFace(ctx, x, y - 2, 8, this.curMood);
   }
 
   private drawSunflower(ctx: CanvasRenderingContext2D): void {
@@ -432,16 +578,7 @@ export class Tower {
     ctx.lineWidth = 2;
     ctx.stroke();
     // 笑脸
-    ctx.fillStyle = '#7a4a10';
-    ctx.beginPath();
-    ctx.arc(x - 4, y - 26, 1.7, 0, TAU);
-    ctx.arc(x + 4, y - 26, 1.7, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = '#7a4a10';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(x, y - 23, 4, 0.15 * Math.PI, 0.85 * Math.PI);
-    ctx.stroke();
+    drawTowerFace(ctx, x, y - 24, 7, this.curMood);
   }
 
   private drawFan(ctx: CanvasRenderingContext2D): void {
@@ -475,10 +612,8 @@ export class Tower {
       ctx.fill();
     }
     ctx.restore();
-    ctx.fillStyle = '#2f6e52';
-    ctx.beginPath();
-    ctx.arc(x, y - 24, 4.5, 0, TAU);
-    ctx.fill();
+    // 扇叶中心的圆盖上画脸，叶片从脸的外侧转过
+    drawTowerFace(ctx, x, y - 24, 9, this.curMood);
   }
 
   private drawRocket(ctx: CanvasRenderingContext2D, f: number): void {
@@ -528,11 +663,14 @@ export class Tower {
     ctx.strokeStyle = '#54697d';
     ctx.lineWidth = 1.4;
     ctx.stroke();
+    // 弹体中部画一张小脸
+    drawTowerFace(ctx, 0, -20, 6, this.curMood);
     ctx.restore();
   }
 
   renderRange(ctx: CanvasRenderingContext2D): void {
     ctx.save();
+    enterGround(ctx, this.x, this.y);
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.strokeStyle = 'rgba(255,255,255,0.7)';
     ctx.lineWidth = 2.5;
@@ -553,4 +691,10 @@ function roundRectLocal(ctx: CanvasRenderingContext2D, x: number, y: number, w: 
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+/** '#rrggbb' → 'rgba(r,g,b,a)' */
+function withAlpha(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }

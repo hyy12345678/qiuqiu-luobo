@@ -1,4 +1,5 @@
 import type { CombatTarget } from '../target';
+import { enterUpright } from '../../render/projection';
 
 export type BulletStyle = 'drop' | 'arrow' | 'ice' | 'rocket';
 
@@ -82,6 +83,13 @@ export class Bullet {
   }
 
   render(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    enterUpright(ctx, this.o.x, this.o.y);
+    this.drawAt(ctx);
+    ctx.restore();
+  }
+
+  private drawAt(ctx: CanvasRenderingContext2D): void {
     const dx = this.lastX - this.o.x;
     const dy = this.lastY - this.o.y;
     const d = Math.hypot(dx, dy) || 1;
@@ -217,6 +225,7 @@ export class FanBlade {
 
   render(ctx: CanvasRenderingContext2D): void {
     ctx.save();
+    enterUpright(ctx, this.x, this.y);
     ctx.translate(this.x, this.y);
     ctx.rotate(this.spin);
     // 三叶风刃

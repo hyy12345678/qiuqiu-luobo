@@ -30,7 +30,7 @@ export const MONSTERS: Record<string, MonsterType> = {
   runner: {
     id: 'runner', name: '飞毛腿',
     hp: 60, speed: 112, bounty: 12, radius: 20, damage: 1,
-    skin: { body: '#a97ae8', dark: '#6f47b1', kind: 'tall' },
+    skin: { body: '#ffd44d', dark: '#c99a1a', kind: 'tall' },
   },
   tank: {
     id: 'tank', name: '铁壳',
@@ -46,7 +46,7 @@ export const MONSTERS: Record<string, MonsterType> = {
     id: 'bomber', name: '爆爆虫',
     hp: 85, speed: 92, bounty: 15, radius: 19, damage: 2,
     deathBlast: { radius: 85, damage: 50 },
-    skin: { body: '#ff6b4a', dark: '#c23a22', kind: 'round' },
+    skin: { body: '#ff6b4a', dark: '#c23a22', kind: 'bomb' },
   },
   boss: {
     id: 'boss', name: '萝卜巨兽',

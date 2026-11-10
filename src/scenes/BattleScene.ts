@@ -16,13 +16,26 @@ import type { CombatTarget } from '../battle/target';
 import { Effects } from '../battle/effects';
 import { applyBlast } from '../battle/explode';
 import type { Blast } from '../battle/explode';
-import { buildGround } from '../render/ground';
+import { buildGround, tiltGround } from '../render/ground';
+import type { GroundBuild } from '../render/ground';
 import { drawCarrot } from '../render/sprites';
-import type { CarrotMood } from '../render/sprites';
+import type { CarrotMood, MonsterSkin } from '../render/sprites';
 import { roundRectPath } from '../render/decor';
 import { DESIGN_W, DESIGN_H } from '../render/Renderer';
+import {
+  WORLD_PAD,
+  enterGround,
+  enterUpright,
+  hitUpright,
+  projectX,
+  projectY,
+  unprojectX,
+  unprojectY,
+} from '../render/projection';
+import type { SpriteBox } from '../render/projection';
 import { TOWER_TYPES, upgradeCost } from '../data/towers';
-import type { TowerKind } from '../data/towers';
+import type { TowerKind, BranchDef } from '../data/towers';
+import { BRANCHES } from '../data/towers';
 import { monsterById } from '../data/monsters';
 import { OBSTACLES } from '../data/obstacles';
 import { ALL_LEVELS, selection } from '../data/levels';
@@ -30,6 +43,25 @@ import { save } from '../save/SaveManager';
 import { audio } from '../audio/AudioManager';
 
 const BANNER_DUR = 1.9;
+
+/** 大招：每杀一只怪攒 5 点，满 100 可释放 */
+const SKILL_MAX = 100;
+const SKILL_PER_KILL = 5;
+/** 冰霜大风：速度乘以 0.15，持续 3 秒 */
+const SKILL_SLOW_RATIO = 0.15;
+const SKILL_SLOW_DUR = 3;
+
+/** 可参与深度排序的绘制对象（塔、道具、怪物、萝卜） */
+interface Depthed {
+  readonly depthY: number;
+  render(ctx: CanvasRenderingContext2D): void;
+}
+
+/** 直立物体在屏幕上的点击包围盒（相对脚下锚点，单位为设计像素，未缩放） */
+const TOWER_HIT: SpriteBox = { left: -40, right: 40, top: -76, bottom: 24 };
+const OBSTACLE_HIT: SpriteBox = { left: -36, right: 36, top: -50, bottom: 30 };
+/** 格子高亮的四个角（相对格子中心） */
+const CELL_CORNERS: ReadonlyArray<readonly [number, number]> = [[-34, -34], [34, -34], [34, 34], [-34, 34]];
 
 /** 原地删除不满足 keep 的元素，保持数组引用不变且不分配新数组 */
 function compactInPlace<T>(arr: T[], keep: (x: T) => boolean): void {
@@ -74,6 +106,11 @@ export class BattleScene implements Scene {
   private ended = false;
   private time = 0;
   private shake = 0;
+  /** 大招能量：击杀攒能量，满 100 可释放 */
+  private energy = 0;
+  /** 大招释放时的屏幕蓝光（1 → 0） */
+  private skillFlash = 0;
+  private skillBtn: HTMLButtonElement | null = null;
   private bannerText = '';
   private bannerT = 99;
   private lastWaveSeen = 0;
@@ -84,9 +121,10 @@ export class BattleScene implements Scene {
   private buildOptionBtns = new Map<TowerKind, HTMLButtonElement>();
   private buildConfirmBtn: HTMLButtonElement | null = null;
   private selectedTower: Tower | null = null;
-  private renderList: Monster[] = [];
-  /** 障碍物按 y 排序后的绘制顺序（每帧复用） */
-  private obstacleDrawList: Obstacle[] = [];
+  /** 统一深度排序列表（塔、道具、怪物、萝卜），每帧复用 */
+  private depthList: Depthed[] = [];
+  /** 萝卜作为深度列表中的一项，depthY 在 enter 时设定 */
+  private carrotView = { depthY: 0, render: (ctx: CanvasRenderingContext2D): void => this.renderCarrot(ctx) };
   /** 怪物 + 障碍物的合并列表（每帧复用，只能同步使用，不要保存引用） */
   private targetBuf: CombatTarget[] = [];
   private offFns: Array<() => void> = [];
@@ -109,6 +147,9 @@ export class BattleScene implements Scene {
     this.paths = this.level.paths.map((cells) => new Path(cells));
     const end = this.paths[0].points[this.paths[0].points.length - 1];
     this.carrotPos = { x: end.x + 4, y: end.y - 10 };
+    this.carrotView.depthY = this.carrotPos.y;
+    this.energy = 0;
+    this.skillFlash = 0;
     this.grid = new Grid(this.paths.map((p) => p.points), this.carrotPos);
     this.economy = new Economy(this.level.startGold);
     this.waves = new WaveManager(this.level.waves as WaveDef[], (typeId, hpScale, pathIdx) => {
@@ -135,9 +176,11 @@ export class BattleScene implements Scene {
 
     // ---- 事件订阅 ----
     this.offFns.push(
-      bus.on<{ bounty: number; x: number; y: number; radius: number; blast?: Blast }>('monster:killed', (p) => {
+      bus.on<{ bounty: number; x: number; y: number; radius: number; skin: MonsterSkin; blast?: Blast }>('monster:killed', (p) => {
         this.economy.add(p.bounty);
+        this.energy = Math.min(SKILL_MAX, this.energy + SKILL_PER_KILL);
         this.fx.floatText(p.x, p.y - p.radius * 1.6, `+${p.bounty}`);
+        this.fx.ghost(p.x, p.y - 4, p.radius, p.skin);
         this.fx.poof(p.x, p.y - p.radius * 0.5);
         audio.play('die');
         audio.play('coin');
@@ -225,7 +268,12 @@ export class BattleScene implements Scene {
     hud.append(chipLevel, this.chipGold, this.chipWave, this.chipTip);
     const spacer = document.createElement('span');
     spacer.className = 'spacer';
-    hud.append(spacer, btnSpeed, btnMute, pauseBtn);
+    // 大招按钮：能量满时才能点
+    this.skillBtn = document.createElement('button');
+    this.skillBtn.className = 'btn btn-icon';
+    this.skillBtn.addEventListener('click', () => this.useSkill());
+
+    hud.append(spacer, this.skillBtn, btnSpeed, btnMute, pauseBtn);
     root.appendChild(hud);
 
     // 底部操作栏（建造面板 / 塔面板共用）
@@ -281,22 +329,39 @@ export class BattleScene implements Scene {
     this.buildConfirmBtn.disabled = !this.economy.canAfford(type.cost);
   }
 
+  /** 塔面板标题：名字、等级，选了分支则带上分支名 */
+  private towerTitle(t: Tower): string {
+    return `${t.type.name} Lv${t.level}${t.branch ? ` · ${t.branch.name}` : ''}`;
+  }
+
+  /** 升级：Lv1→2 直接升；Lv2→3 必须传入分支 */
+  private upgradeTower(t: Tower, branch: BranchDef | null): void {
+    if (t.level >= 3) return;
+    if (t.level === 2 && !branch) return;
+    const c = upgradeCost(t.type, t.level);
+    if (!this.economy.spend(c)) return;
+    t.invested += c;
+    if (branch) t.branch = branch;
+    t.level += 1;
+    t.kickLevelUp();
+    this.fx.poof(t.x, t.y - 20, 18, '#fff3c4');
+    audio.play('upgrade');
+    this.refreshHud();
+    this.openTowerPanel(t);
+  }
+
   private openTowerPanel(t: Tower): void {
     this.dockBar.innerHTML = '';
     const name = document.createElement('span');
     name.className = 'chip';
-    name.textContent = `${t.type.name} Lv${t.level}`;
+    name.textContent = this.towerTitle(t);
     const upBtn = this.dockButton('', '');
-    upBtn.addEventListener('click', () => {
-      if (t.level >= 3) return;
-      const c = upgradeCost(t.type, t.level);
-      if (!this.economy.spend(c)) return;
-      t.invested += c;
-      t.level += 1;
-      this.fx.poof(t.x, t.y - 20, 18, '#fff3c4');
-      audio.play('upgrade');
-      this.refreshHud();
-      this.openTowerPanel(t);
+    upBtn.addEventListener('click', () => this.upgradeTower(t, null));
+    // Lv2 升 Lv3 时，用两个分支按钮代替普通升级按钮
+    const branchBtns = BRANCHES[t.type.id].map((def) => {
+      const b = this.dockButton('', 'btn-branch');
+      b.addEventListener('click', () => this.upgradeTower(t, def));
+      return b;
     });
     const sellBtn = this.dockButton('', 'btn-cancel');
     sellBtn.addEventListener('click', () => {
@@ -312,17 +377,27 @@ export class BattleScene implements Scene {
     });
     const closeBtn = this.dockButton('✖', 'btn-cancel');
     closeBtn.addEventListener('click', () => this.clearSelection());
-    this.dockBar.append(name, upBtn, sellBtn, closeBtn);
+    this.dockBar.append(name, upBtn, ...branchBtns, sellBtn, closeBtn);
     this.dockBar.hidden = false;
     this.refreshHud();
 
     const refresh = (): void => {
+      name.textContent = this.towerTitle(t);
+      const branchStage = t.level === 2;
+      const cost = t.level < 3 ? upgradeCost(t.type, t.level) : 0;
+      upBtn.style.display = branchStage ? 'none' : '';
+      branchBtns.forEach((b, i) => {
+        const def = BRANCHES[t.type.id][i];
+        b.style.display = branchStage ? '' : 'none';
+        b.innerHTML = `${def.name}（${cost}）<br><small>${def.desc}</small>`;
+        b.disabled = !this.economy.canAfford(cost);
+      });
       if (t.level >= 3) {
         upBtn.textContent = '已满级 ⭐';
         upBtn.disabled = true;
-      } else {
-        upBtn.textContent = `⬆️ 升级（${upgradeCost(t.type, t.level)}）`;
-        upBtn.disabled = !this.economy.canAfford(upgradeCost(t.type, t.level));
+      } else if (!branchStage) {
+        upBtn.textContent = `⬆️ 升级（${cost}）`;
+        upBtn.disabled = !this.economy.canAfford(cost);
       }
       sellBtn.textContent = `💰 出售 +${Math.floor(t.invested * 0.7)}`;
     };
@@ -422,6 +497,7 @@ export class BattleScene implements Scene {
     compactInPlace(this.obstacles, (o) => !o.dead);
 
     this.fx.update(dt);
+    if (this.skillFlash > 0) this.skillFlash = Math.max(0, this.skillFlash - dt * 1.5);
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 1.4);
     if (this.bannerT < BANNER_DUR) this.bannerT += dt;
 
@@ -433,18 +509,30 @@ export class BattleScene implements Scene {
   // ---------------- 渲染 ----------------
 
   render(ctx: CanvasRenderingContext2D): void {
-    ctx.drawImage(this.groundCanvas(), 0, 0, DESIGN_W, DESIGN_H);
+    const ground = this.groundData();
+    ctx.drawImage(ground.canvas, 0, 0, DESIGN_W, DESIGN_H);
 
     if (this.selectedCell) {
       const c = this.grid.cellCenter(this.selectedCell.col, this.selectedCell.row);
       const pulse = 0.55 + Math.sin(this.time * 6) * 0.25;
+      // 格子高亮：四个角分别投影，画成斜面上的梯形
+      ctx.beginPath();
+      for (let i = 0; i < CELL_CORNERS.length; i++) {
+        const wx = c.x + CELL_CORNERS[i][0];
+        const wy = c.y + CELL_CORNERS[i][1];
+        if (i === 0) ctx.moveTo(projectX(wx, wy), projectY(wy));
+        else ctx.lineTo(projectX(wx, wy), projectY(wy));
+      }
+      ctx.closePath();
       ctx.fillStyle = `rgba(255,255,255,${0.1 + pulse * 0.08})`;
       ctx.strokeStyle = `rgba(255,255,255,${pulse})`;
       ctx.lineWidth = 4;
-      roundRectPath(ctx, c.x - 34, c.y - 34, 68, 68, 12);
       ctx.fill();
       ctx.stroke();
+
+      // 射程预览：地面上的圆在斜视角下是椭圆
       ctx.save();
+      enterGround(ctx, c.x, c.y);
       ctx.setLineDash([12, 10]);
       ctx.strokeStyle = 'rgba(255,255,255,0.75)';
       ctx.fillStyle = 'rgba(120,210,255,0.10)';
@@ -456,34 +544,25 @@ export class BattleScene implements Scene {
       ctx.restore();
     }
 
-    ctx.save();
-    if (this.shake > 0) {
-      ctx.translate(Math.sin(this.time * 72) * 7 * this.shake, Math.cos(this.time * 61) * 5 * this.shake);
-    }
-    if (this.carrotHp > 0) {
-      const mood: CarrotMood = this.carrotHp > 6 ? 'happy' : this.carrotHp > 3 ? 'worried' : 'hurt';
-      drawCarrot(ctx, this.carrotPos.x, this.carrotPos.y, 108, mood);
-      this.drawCarrotHpBar(ctx);
-    }
-    ctx.restore();
-
-    const obs = this.obstacleDrawList;
-    obs.length = 0;
-    for (const o of this.obstacles) obs.push(o);
-    obs.sort((a, b) => a.pos.y - b.pos.y);
-    for (const o of obs) o.render(ctx);
-    for (const t of this.towers) t.render(ctx);
-    if (this.selectedTower) this.selectedTower.renderRange(ctx);
-
-    // 复用数组避免每帧分配（低端机 GC 压力）
-    const list = this.renderList;
+    // 复用数组按脚下 y 统一排序，塔、道具、怪物、萝卜互相遮挡正确
+    const list = this.depthList;
     list.length = 0;
+    for (const o of this.obstacles) list.push(o);
+    for (const t of this.towers) list.push(t);
     for (const m of this.monsters) list.push(m);
-    list.sort((a, b) => a.pos.y - b.pos.y);
-    for (const m of list) m.render(ctx);
+    for (const p of ground.props) list.push(p);
+    list.push(this.carrotView);
+    list.sort((a, b) => a.depthY - b.depthY);
+    for (const e of list) e.render(ctx);
+
+    if (this.selectedTower) this.selectedTower.renderRange(ctx);
     for (const p of this.projectiles) p.render(ctx);
     this.fx.render(ctx);
 
+    if (this.skillFlash > 0) {
+      ctx.fillStyle = `rgba(190,235,255,${this.skillFlash * 0.35})`;
+      ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
+    }
     if (this.bannerT < BANNER_DUR) this.drawBanner(ctx);
   }
 
@@ -510,6 +589,20 @@ export class BattleScene implements Scene {
     ctx.restore();
   }
 
+  /** 萝卜：受击时整体抖动，血量阶段决定表情 */
+  private renderCarrot(ctx: CanvasRenderingContext2D): void {
+    if (this.carrotHp <= 0) return;
+    ctx.save();
+    if (this.shake > 0) {
+      ctx.translate(Math.sin(this.time * 72) * 7 * this.shake, Math.cos(this.time * 61) * 5 * this.shake);
+    }
+    enterUpright(ctx, this.carrotPos.x, this.carrotPos.y);
+    const mood: CarrotMood = this.carrotHp > 6 ? 'happy' : this.carrotHp > 3 ? 'worried' : 'hurt';
+    drawCarrot(ctx, this.carrotPos.x, this.carrotPos.y, 108, mood);
+    this.drawCarrotHpBar(ctx);
+    ctx.restore();
+  }
+
   private drawCarrotHpBar(ctx: CanvasRenderingContext2D): void {
     const pct = Math.max(0, this.carrotHp / this.level.carrotHp);
     const w = 84;
@@ -525,21 +618,29 @@ export class BattleScene implements Scene {
 
   // ---------------- 交互 ----------------
 
-  onTap(x: number, y: number): void {
+  /** (sx, sy) 为屏幕上的设计坐标（Input 已换算） */
+  onTap(sx: number, sy: number): void {
     if (this.ended || settings.paused) return;
-    const cell = this.grid.worldToCell(x, y);
-    if (!cell) {
-      this.clearSelection();
-      return;
-    }
-    const towerHere = this.towers.find((t) => t.col === cell.col && t.row === cell.row);
+    // 空地格子：屏幕点反投影到平面坐标后按格子判定
+    const wy = unprojectY(sy);
+    const cell = this.grid.worldToCell(unprojectX(sx, wy), wy);
+    // 直立的塔与道具：优先按屏幕包围盒判定（塔顶的屏幕位置可能落在上一行的格子里）
+    const towerHere =
+      this.towers.find((t) => hitUpright(t.x, t.depthY, sx, sy, TOWER_HIT)) ??
+      this.towers.find((t) => !!cell && t.col === cell.col && t.row === cell.row);
     if (towerHere) {
       this.selectedCell = null;
       this.selectedTower = towerHere;
       this.openTowerPanel(towerHere);
       return;
     }
-    const obstacleHere = this.obstacles.find((o) => o.col === cell.col && o.row === cell.row);
+    const obstacleHere =
+      this.obstacles.find((o) => hitUpright(o.pos.x, o.depthY, sx, sy, OBSTACLE_HIT)) ??
+      this.obstacles.find((o) => !!cell && o.col === cell.col && o.row === cell.row);
+    if (!cell) {
+      this.clearSelection();
+      return;
+    }
     if (obstacleHere) {
       const info = OBSTACLES[obstacleHere.kind];
       this.fx.floatText(obstacleHere.pos.x, obstacleHere.pos.y - 52, `${info.name} · 打碎得 ${info.reward}🪙`, '#ffe9a8');
@@ -584,8 +685,21 @@ export class BattleScene implements Scene {
     if (remaining == null) return;
     const bonus = Math.ceil(Math.min(remaining, 6) * 10);
     this.economy.add(bonus);
-    this.fx.floatText(DESIGN_W / 2, 110, `提前召唤 +${bonus}`, '#ffd54f');
+    this.fx.floatText(DESIGN_W / 2, 110, `提前召唤 +${bonus}`, '#ffd54f', true);
     audio.play('coin');
+    this.refreshHud();
+  }
+
+  /** 大招：全场怪物减速 85%，持续 3 秒，屏幕泛蓝光 */
+  private useSkill(): void {
+    if (this.ended || settings.paused || this.energy < SKILL_MAX) return;
+    this.energy = 0;
+    for (const m of this.monsters) {
+      if (!m.dead) m.applySlow(SKILL_SLOW_RATIO, SKILL_SLOW_DUR);
+    }
+    this.skillFlash = 1;
+    this.fx.floatText(DESIGN_W / 2, 200, '❄ 冰霜大风！', '#bfe9ff', true);
+    audio.play('upgrade');
     this.refreshHud();
   }
 
@@ -634,8 +748,16 @@ export class BattleScene implements Scene {
 
   private refreshHud(): void {
     this.chipGold.textContent = `🪙 ${this.economy.gold}`;
+    this.refreshSkillBtn();
     this.towerPanelRefresh?.();
     if (!this.dockBar.hidden && this.selectedCell) this.refreshBuildPanel();
+  }
+
+  private refreshSkillBtn(): void {
+    if (!this.skillBtn) return;
+    const ready = this.energy >= SKILL_MAX;
+    this.skillBtn.textContent = ready ? '✨ 大招就绪！' : `✨ 大招 ${Math.floor(this.energy)}%`;
+    this.skillBtn.disabled = !ready || this.ended;
   }
 
   private refreshWaveChip(): void {
@@ -712,13 +834,14 @@ export class BattleScene implements Scene {
   }
 
   // 静态地图缓存（按关卡区分，重开局复用）
-  private groundCaches = new Map<number, HTMLCanvasElement>();
-  private groundCanvas(): HTMLCanvasElement {
-    let cv = this.groundCaches.get(this.level.id);
-    if (!cv) {
-      cv = buildGround(this.paths.map((p) => p.points), this.carrotPos, 20260826 + this.level.id);
-      this.groundCaches.set(this.level.id, cv);
+  private groundCaches = new Map<number, GroundBuild>();
+  private groundData(): GroundBuild {
+    let data = this.groundCaches.get(this.level.id);
+    if (!data) {
+      const built = buildGround(this.paths.map((p) => p.points), this.carrotPos, 20260826 + this.level.id, WORLD_PAD);
+      data = { canvas: tiltGround(built.canvas, WORLD_PAD), props: built.props };
+      this.groundCaches.set(this.level.id, data);
     }
-    return cv;
+    return data;
   }
 }

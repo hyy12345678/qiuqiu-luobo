@@ -1,6 +1,23 @@
+import { depthScale, projectX, projectY } from '../render/projection';
+import { drawMonster } from '../render/sprites';
+import type { MonsterSkin } from '../render/sprites';
+
+/** 死亡残影：怪物被打中后原地弹起、闭眼淡出 */
+interface Ghost {
+  x: number;
+  y: number;
+  r: number;
+  skin: MonsterSkin;
+  t: number;
+}
+
+const GHOST_DUR = 0.45;
+
 interface FloatText {
   x: number;
   y: number;
+  /** true 表示 (x, y) 已是屏幕坐标（HUD 提示），不做投影 */
+  screen: boolean;
   text: string;
   color: string;
   t: number;
@@ -25,10 +42,17 @@ const PUFF_BALLS: ReadonlyArray<readonly [number, number, number]> = [
 export class Effects {
   private floats: FloatText[] = [];
   private poofs: Poof[] = [];
+  private ghosts: Ghost[] = [];
 
-  floatText(x: number, y: number, text: string, color = '#ffd54f'): void {
+  /** 怪物死亡残影（世界坐标） */
+  ghost(x: number, y: number, r: number, skin: MonsterSkin): void {
+    if (this.ghosts.length >= 20) this.ghosts.shift();
+    this.ghosts.push({ x, y, r, skin, t: 0 });
+  }
+
+  floatText(x: number, y: number, text: string, color = '#ffd54f', screen = false): void {
     if (this.floats.length >= 40) this.floats.shift();
-    this.floats.push({ x, y, text, color, t: 0 });
+    this.floats.push({ x, y, text, color, screen, t: 0 });
   }
 
   poof(x: number, y: number, scale = 26, color = '#fbfbf4'): void {
@@ -50,17 +74,43 @@ export class Effects {
       if (p.t < POOF_DUR) this.poofs[n++] = p;
     }
     this.poofs.length = n;
+    n = 0;
+    for (const g of this.ghosts) {
+      g.t += dt;
+      if (g.t < GHOST_DUR) this.ghosts[n++] = g;
+    }
+    this.ghosts.length = n;
   }
 
   render(ctx: CanvasRenderingContext2D): void {
+    // 死亡残影：先压扁、再弹起放大，同时闭眼淡出
+    for (const g of this.ghosts) {
+      const k = g.t / GHOST_DUR;
+      const X = projectX(g.x, g.y);
+      const Y = projectY(g.y);
+      const sc = depthScale(g.y);
+      const pop = 1 + 0.28 * Math.sin(Math.PI * Math.min(1, k * 1.4));
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      ctx.translate(X, Y - k * 26 * sc);
+      ctx.scale(sc * pop * 1.05, sc * pop * 0.92);
+      drawMonster(ctx, 0, 0, g.r, g.skin, 0, 0, 0.9);
+      ctx.restore();
+    }
+
+    
     for (const p of this.poofs) {
       const k = p.t / POOF_DUR;
       ctx.globalAlpha = (1 - k) * 0.85;
       ctx.fillStyle = p.color;
+      // 烟云按远近缩放，位置投影到屏幕
+      const X = projectX(p.x, p.y);
+      const Y = projectY(p.y);
+      const sc = p.scale * depthScale(p.y);
       // 一团四球的小烟云，随时间扩散
       for (const [dx, dy, r] of PUFF_BALLS) {
         ctx.beginPath();
-        ctx.arc(p.x + dx * p.scale, p.y + dy * p.scale - k * 8, r * p.scale * (0.5 + k * 0.7), 0, Math.PI * 2);
+        ctx.arc(X + dx * sc, Y + dy * sc - k * 8, r * sc * (0.5 + k * 0.7), 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
@@ -72,12 +122,15 @@ export class Effects {
     for (const f of this.floats) {
       const k = f.t / FLOAT_DUR;
       ctx.globalAlpha = 1 - k * k;
-      const y = f.y - k * 34;
+      // 飘字位置投影到屏幕，文字本身不缩放，保证可读
+      const X = f.screen ? f.x : projectX(f.x, f.y);
+      const Y = f.screen ? f.y : projectY(f.y);
+      const y = Y - k * 34;
       ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(40,25,5,0.75)';
-      ctx.strokeText(f.text, f.x, y);
+      ctx.strokeText(f.text, X, y);
       ctx.fillStyle = f.color;
-      ctx.fillText(f.text, f.x, y);
+      ctx.fillText(f.text, X, y);
     }
     ctx.globalAlpha = 1;
   }

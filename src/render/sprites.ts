@@ -169,7 +169,7 @@ export function drawCarrot(
   ctx.restore();
 }
 
-export type MonsterKind = 'round' | 'tall' | 'spiky' | 'tank' | 'healer' | 'boss';
+export type MonsterKind = 'round' | 'tall' | 'spiky' | 'tank' | 'healer' | 'boss' | 'bomb';
 
 export interface MonsterSkin {
   body: string;
@@ -194,11 +194,13 @@ export function drawMonster(
   skin: MonsterSkin,
   phase: number,
   dirAngle: number,
+  blink = 0,
 ): void {
   ctx.save();
   const bounce = Math.abs(Math.sin(phase)) * r * 0.14;
   const by = y - bounce;
-  const tall = skin.kind === 'tall' ? 1.28 : 1;
+  // 飞毛腿原来偏高，改成更圆的身形
+  const tall = skin.kind === 'tall' ? 1.12 : 1;
 
   // 影子（不随身体弹跳）
   ctx.fillStyle = 'rgba(0,0,0,0.24)';
@@ -286,6 +288,23 @@ export function drawMonster(
     const cw = r * 0.13;
     ctx.fillRect(x - cw / 2, capY - cw * 1.1, cw, cw * 2.2);
     ctx.fillRect(x - cw * 1.1, capY - cw / 2, cw * 2.2, cw);
+  } else if (skin.kind === 'bomb') {
+    // 头顶一根小火绳，末端一点火花
+    ctx.strokeStyle = '#5b4636';
+    ctx.lineWidth = r * 0.1;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, by - r * 0.9);
+    ctx.quadraticCurveTo(x + r * 0.5, by - r * 1.5, x + r * 0.2, by - r * 1.6);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd54a';
+    ctx.beginPath();
+    ctx.arc(x + r * 0.2, by - r * 1.6, r * 0.14, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#fff6c2';
+    ctx.beginPath();
+    ctx.arc(x + r * 0.2, by - r * 1.6, r * 0.06, 0, TAU);
+    ctx.fill();
   } else if (skin.kind === 'boss') {
     // 双角
     ctx.fillStyle = '#e8dfc0';
@@ -302,23 +321,51 @@ export function drawMonster(
     }
   }
 
+  // 兔耳（飞毛腿）：两只长耳朵，内侧粉色
+  if (skin.kind === 'tall') {
+    for (const side of [-1, 1]) {
+      const ex = x + side * r * 0.42;
+      const ey = by - r * tall * 0.95;
+      ctx.fillStyle = skin.body;
+      ctx.strokeStyle = skin.dark;
+      ctx.lineWidth = r * 0.1;
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, r * 0.2, r * 0.5, side * 0.18, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffb3c1';
+      ctx.beginPath();
+      ctx.ellipse(ex, ey + r * 0.05, r * 0.09, r * 0.32, side * 0.18, 0, TAU);
+      ctx.fill();
+    }
+  }
+
   // 眼睛看向移动方向
   const lookX = Math.cos(dirAngle) * r * 0.16;
   const lookY = Math.sin(dirAngle) * r * 0.16;
   const eyeY = by - r * 0.18;
+  // 眨眼：eyeK 为眼睛的竖向开合比例（1 为睁开）
+  const eyeK = 1 - blink * 0.9;
   for (const side of [-1, 1]) {
     const ex = x + side * r * 0.36;
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.ellipse(ex, eyeY, r * 0.3, r * 0.33, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, eyeY, r * 0.34, r * 0.37 * eyeK, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#2d2333';
     ctx.beginPath();
-    ctx.arc(ex + lookX, eyeY + lookY, r * 0.15, 0, Math.PI * 2);
+    ctx.arc(ex + lookX, eyeY + lookY, r * 0.17 * eyeK, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.arc(ex + lookX - r * 0.05, eyeY + lookY - r * 0.06, r * 0.05, 0, Math.PI * 2);
+    ctx.arc(ex + lookX - r * 0.06, eyeY + lookY - r * 0.07, r * 0.055 * eyeK, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // 腮红：让脸更软、更萌
+  ctx.fillStyle = 'rgba(255,120,130,0.42)';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(x + side * r * 0.66, by + r * 0.16, r * 0.15, r * 0.09, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -523,4 +570,68 @@ function roundRectLocal(ctx: CanvasRenderingContext2D, x: number, y: number, w: 
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+/** 塔的表情：开心（默认）、开火兴奋、眨眼 */
+export type TowerMood = 'happy' | 'excited' | 'blink';
+
+/**
+ * 通用的塔脸：两颗大眼睛（带高光）、腮红、一张嘴。
+ * (cx, cy) 为脸的中心，r 为脸的半径。所有绘制都以本地坐标计算，调用方负责 save/restore。
+ */
+export function drawTowerFace(
+  ctx: CanvasRenderingContext2D,
+  cx: number, cy: number,
+  r: number,
+  mood: TowerMood,
+): void {
+  const ex = r * 0.42;
+  const ey = cy - r * 0.12;
+
+  // 腮红
+  ctx.fillStyle = 'rgba(255,120,130,0.5)';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + side * ex * 1.45, cy + r * 0.3, r * 0.2, r * 0.13, 0, 0, TAU);
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = '#2d2333';
+  ctx.lineCap = 'round';
+  if (mood === 'blink') {
+    // 闭眼：一条短横线
+    ctx.lineWidth = Math.max(1, r * 0.13);
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + side * ex - r * 0.16, ey);
+      ctx.lineTo(cx + side * ex + r * 0.16, ey);
+      ctx.stroke();
+    }
+  } else {
+    const eyeR = mood === 'excited' ? r * 0.25 : r * 0.2;
+    for (const side of [-1, 1]) {
+      const px = cx + side * ex;
+      ctx.fillStyle = '#2d2333';
+      ctx.beginPath();
+      ctx.arc(px, ey, eyeR, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(px - eyeR * 0.35, ey - eyeR * 0.4, eyeR * 0.36, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  // 嘴：开火时张嘴，其余时间微笑
+  if (mood === 'excited') {
+    ctx.fillStyle = '#7a2d1a';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + r * 0.34, r * 0.2, r * 0.17, 0, 0, TAU);
+    ctx.fill();
+  } else {
+    ctx.lineWidth = Math.max(1, r * 0.12);
+    ctx.beginPath();
+    ctx.arc(cx, cy + r * 0.22, r * 0.22, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  }
 }

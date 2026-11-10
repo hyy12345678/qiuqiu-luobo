@@ -18,6 +18,13 @@ const SAVE_KEY = 'qqlb-save-v1';
 // 视口 1280x720 => renderer.scale=1 => 设计坐标 == CSS 坐标
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// 与 src/render/projection.ts 保持一致的伪 3D 投影：把平面设计坐标换算成屏幕上要点击的位置。
+// 页面加 ?flat 时投影为恒等变换，本函数结果需同步改为 (x, y)。
+function proj(x, y) {
+  const s = 0.7 + 0.3 * (y / 720);
+  return [640 + (x - 640) * s, 216 + 0.7 * y];
+}
+
 function attachErrors(page, list) {
   page.on('pageerror', e => list.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') list.push('console: ' + m.text()); });
@@ -72,8 +79,8 @@ async function clickByText(page, selector, text) {
   const goldBefore = await readGold(page);
   console.log('初始金币:', goldBefore);
 
-  // 点击可建造格 (col0,row7) => 设计中心 (40,600)
-  await page.mouse.click(40, 600);
+  // 点击可建造格 (col0,row7) => 设计中心 (40,600)，屏幕位置经投影换算
+  await page.mouse.click(...proj(40, 600));
   await sleep(300);
 
   const panelState = await page.evaluate(() => {
@@ -102,7 +109,7 @@ async function clickByText(page, selector, text) {
   // 负例：点击路面格子不应弹面板。路面拐点 (3,1) 中心 (280,120)
   await page.evaluate(() => { const b = document.querySelector('.build-bar'); if (b) b.hidden = true; });
   await sleep(100);
-  await page.mouse.click(280, 120);
+  await page.mouse.click(...proj(280, 120));
   await sleep(200);
   const roadPanel = await page.evaluate(() => {
     const bar = document.querySelector('.build-bar');
@@ -128,7 +135,7 @@ async function clickByText(page, selector, text) {
   if (lv2Unlocked) {
     await cards2[1].click();
     await sleep(500);
-    await page2.mouse.click(40, 680); // (0,8) 第 2 关可建、无障碍
+    await page2.mouse.click(...proj(40, 680)); // (0,8) 第 2 关可建、无障碍
     await sleep(300);
 
     const labels2 = await towerLabels(page2);

@@ -2,6 +2,7 @@ import { bus } from '../../core/EventBus';
 import type { Path } from '../Path';
 import { drawMonster } from '../../render/sprites';
 import { roundRectPath } from '../../render/decor';
+import { enterUpright } from '../../render/projection';
 import type { MonsterType } from '../../data/monsters';
 import type { CombatTarget } from '../target';
 
@@ -68,6 +69,7 @@ export class Monster implements CombatTarget {
         x: this.pos.x,
         y: this.pos.y,
         radius: this.type.radius,
+        skin: this.type.skin,
         blast: this.type.deathBlast,
       });
     } else if (this.type.hitStagger) {
@@ -78,7 +80,8 @@ export class Monster implements CombatTarget {
   applySlow(ratio: number, dur: number): void {
     const resist = this.type.slowResist ?? 0;
     const effective = ratio + (1 - ratio) * resist; // 抗性往 1 方向折算
-    this.slowRatio = Math.max(this.slowT > 0 ? this.slowRatio : 1, effective);
+    // 已有减速时保留更强的那一个（比例更小）；没有减速时直接用新的比例
+    this.slowRatio = this.slowT > 0 ? Math.min(this.slowRatio, effective) : effective;
     this.slowT = Math.max(this.slowT, dur);
   }
 
@@ -90,7 +93,32 @@ export class Monster implements CombatTarget {
     return this.hp - before;
   }
 
+  /** 深度排序用：脚下的世界 y */
+  get depthY(): number {
+    return this.pos.y;
+  }
+
+  /** 眨眼强度 0~1：约每 3 秒闭眼一次，每只怪的节奏不同 */
+  private blinkAmount(): number {
+    const t = (this.phase * 0.2 + this.id * 0.7) % TAU;
+    return t < 0.15 ? 1 - Math.abs(t - 0.075) / 0.075 : 0;
+  }
+
   render(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    enterUpright(ctx, this.pos.x, this.pos.y);
+    // 走路时身体一弹一压，受击时横向撑开、纵向压扁
+    const { x, y } = this.pos;
+    const walk = Math.sin(this.phase * 2) * 0.03;
+    const hit = this.flash > 0 ? (this.flash / 0.12) * 0.1 : 0;
+    ctx.translate(x, y);
+    ctx.scale(1 + hit - walk, 1 - hit + walk);
+    ctx.translate(-x, -y);
+    this.drawSprite(ctx);
+    ctx.restore();
+  }
+
+  private drawSprite(ctx: CanvasRenderingContext2D): void {
     if (this.staggerT > 0 && this.type.hitStagger) {
       // 硬直时沿脚底做轻微压扁，表现受击的沉重感
       const k = this.staggerT / this.type.hitStagger.dur;
@@ -110,7 +138,7 @@ export class Monster implements CombatTarget {
   private renderBody(ctx: CanvasRenderingContext2D): void {
     const { x, y } = this.pos;
     const r = this.radius;
-    drawMonster(ctx, x, y - 4, r, this.type.skin, this.phase, this.angle);
+    drawMonster(ctx, x, y - 4, r, this.type.skin, this.phase, this.angle, this.blinkAmount());
 
     // 受击白闪
     if (this.flash > 0) {
