@@ -3,9 +3,9 @@ import type { LevelDef } from './types';
 /** 第 4 关：回旋谷——超长蛇形路，防线纵深就是一切 */
 export const LEVEL_4: LevelDef = {
   id: 4,
-  name: '回旋谷',
+  name: 'level.4',
   startGold: 260,
-  carrotHp: 10,
+  pumpkinHp: 10,
   unlockedTowers: ['bottle', 'frost', 'multishot', 'sunflower', 'fan', 'rocket'],
   paths: [
     [

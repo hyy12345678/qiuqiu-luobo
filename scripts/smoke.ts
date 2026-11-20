@@ -19,13 +19,13 @@ for (const lv of ALL_LEVELS) {
   console.log(`\n—— 第 ${lv.id} 关「${lv.name}」——`);
   const paths = lv.paths.map((cells) => new Path(cells));
   const endPt = paths[0].points[paths[0].points.length - 1];
-  const carrot = { x: endPt.x + 4, y: endPt.y - 10 };
+  const pumpkin = { x: endPt.x + 4, y: endPt.y - 10 };
 
   check('至少一条路径', paths.length >= 1);
   check(
-    '萝卜完整显示在画面内',
-    carrot.x > 80 && carrot.x < 1240 && carrot.y > 100 && carrot.y < 650,
-    `(${carrot.x.toFixed(0)},${carrot.y.toFixed(0)})`,
+    '南瓜完整显示在画面内',
+    pumpkin.x > 80 && pumpkin.x < 1240 && pumpkin.y > 100 && pumpkin.y < 650,
+    `(${pumpkin.x.toFixed(0)},${pumpkin.y.toFixed(0)})`,
   );
   for (let i = 0; i < paths.length; i++) {
     const p = paths[i];
@@ -35,11 +35,11 @@ for (const lv of ALL_LEVELS) {
     check(`路径${i} 起点在画面外`, p.points[0].x < 0 || p.points[0].y < 0);
   }
 
-  const grid = new Grid(paths.map((p) => p.points), carrot);
+  const grid = new Grid(paths.map((p) => p.points), pumpkin);
   let buildable = 0;
   for (let r = 0; r < 9; r++) for (let c = 0; c < 16; c++) if (grid.isBuildable(c, r)) buildable++;
   check('可建造格数量充足', buildable > 20 && buildable < 135, `${buildable} 格`);
-  check('萝卜周边不可建造', !grid.isBuildable(Math.floor(carrot.x / 80), Math.floor(carrot.y / 80)));
+  check('南瓜周边不可建造', !grid.isBuildable(Math.floor(pumpkin.x / 80), Math.floor(pumpkin.y / 80)));
 
   const keys = new Set<number>();
   let obOk = true;

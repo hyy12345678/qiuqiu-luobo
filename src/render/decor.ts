@@ -81,13 +81,13 @@ export function drawBush(
 ): void {
   ctx.save();
   ctx.translate(x, y);
-  ctx.fillStyle = '#4c9e3a';
+  ctx.fillStyle = '#2f4a24';
   for (const [dx, dy, r] of [[-0.55, -0.1, 0.55], [0.55, -0.1, 0.55], [0, -0.42, 0.62]]) {
     ctx.beginPath();
     ctx.arc(dx * s, dy * s, r * s, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = '#63ba4b';
+  ctx.fillStyle = '#3f5e2e';
   for (const [dx, dy, r] of [[-0.5, -0.22, 0.36], [0.42, -0.3, 0.4], [0.05, -0.55, 0.34]]) {
     ctx.beginPath();
     ctx.arc(dx * s, dy * s, r * s, 0, Math.PI * 2);

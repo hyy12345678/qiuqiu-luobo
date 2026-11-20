@@ -1,4 +1,5 @@
-/** 进度存档：星级记录 + 静音偏好，localStorage 持久化（无存储环境自动降级为内存） */
+/** 进度存档：星级记录 + 静音偏好 + 语言，localStorage 持久化（无存储环境自动降级为内存） */
+import type { Lang } from '../i18n';
 
 const KEY = 'qqlb-save-v1';
 
@@ -6,6 +7,8 @@ export interface SaveData {
   /** levelId -> 星级(1~3) */
   stars: Record<number, number>;
   muted: boolean;
+  /** 界面语言，缺省为英文 */
+  lang: Lang;
 }
 
 function loadStore(): Storage | null {
@@ -29,8 +32,8 @@ class SaveManager {
     }
     this.data =
       loaded && loaded.stars && typeof loaded.stars === 'object'
-        ? { stars: loaded.stars, muted: !!loaded.muted }
-        : { stars: {}, muted: false };
+        ? { stars: loaded.stars, muted: !!loaded.muted, lang: loaded.lang === 'zh' ? 'zh' : 'en' }
+        : { stars: {}, muted: false, lang: 'en' };
   }
 
   private persist(): void {
@@ -62,6 +65,15 @@ class SaveManager {
 
   setMuted(m: boolean): void {
     this.data.muted = m;
+    this.persist();
+  }
+
+  get lang(): Lang {
+    return this.data.lang;
+  }
+
+  setLang(lang: Lang): void {
+    this.data.lang = lang;
     this.persist();
   }
 }

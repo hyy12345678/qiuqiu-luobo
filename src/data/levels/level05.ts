@@ -1,11 +1,11 @@
 import type { LevelDef } from './types';
 
-/** 第 5 关：巨兽巢穴——关底 Boss「萝卜巨兽」登场 */
+/** 第 5 关：巨兽巢穴——关底 Boss「南瓜巨兽」登场 */
 export const LEVEL_5: LevelDef = {
   id: 5,
-  name: '巨兽巢穴',
+  name: 'level.5',
   startGold: 350,
-  carrotHp: 10,
+  pumpkinHp: 10,
   unlockedTowers: ['bottle', 'frost', 'multishot', 'sunflower', 'fan', 'rocket'],
   paths: [
     [

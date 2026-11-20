@@ -1,6 +1,7 @@
 import { DESIGN_W, DESIGN_H } from './Renderer';
 import { drawFlower, drawTuft, drawPebble, drawBush, drawMushroom } from './decor';
 import { mulberry32 } from '../utils/rng';
+import { t } from '../i18n';
 import { distToPolyline } from '../utils/math';
 import { TILTED, Y_TOP, projectY, depthScale, enterUpright } from './projection';
 
@@ -13,11 +14,11 @@ export interface Pt {
 }
 
 /**
- * 把整张静态地图（草地、泥路、装饰、入口木牌、萝卜土丘、暗角）
+ * 把整张静态地图（草地、泥路、装饰、入口木牌、南瓜土丘、暗角）
  * 一次性画进离屏画布。战斗中每帧只 drawImage 一次，性能与观感双赢。
  * 支持多条进攻路径。
  */
-export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): GroundBuild {
+export function buildGround(paths: Pt[][], pumpkin: Pt, seed: number, pad = 0): GroundBuild {
   // 画布左右各多出 pad 的世界宽度，坐标系平移后仍用设计坐标作图
   const props: PropDraw[] = [];
   const cv = document.createElement('canvas');
@@ -32,7 +33,7 @@ export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): G
   const rng = mulberry32(seed);
   // 世界 x 的随机范围：包含左右多出的部分
   const randX = (): number => -pad + rng() * (DESIGN_W + 2 * pad);
-  // 装饰避开的区域：所有路径走廊、萝卜周围、入口木牌
+  // 装饰避开的区域：所有路径走廊、南瓜周围、入口木牌
   const start = paths[0][0];
   const signZone = { x0: start.x + 20, y0: start.y + 55, x1: start.x + 260, y1: start.y + 300 };
   const distToRoads = (x: number, y: number): number =>
@@ -41,7 +42,7 @@ export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): G
     for (let tries = 0; tries < 24; tries++) {
       const p = { x: randX(), y: rng() * DESIGN_H };
       if (distToRoads(p.x, p.y) < margin) continue;
-      if (Math.hypot(p.x - carrot.x, p.y - carrot.y) < 115) continue;
+      if (Math.hypot(p.x - pumpkin.x, p.y - pumpkin.y) < 115) continue;
       if (p.x > signZone.x0 && p.x < signZone.x1 && p.y > signZone.y0 && p.y < signZone.y1) continue;
       return p;
     }
@@ -50,8 +51,8 @@ export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): G
 
   // ---- 草地底色 + 明暗斑驳 ----
   const grassGrad = g.createLinearGradient(0, 0, 0, DESIGN_H);
-  grassGrad.addColorStop(0, '#a3de67');
-  grassGrad.addColorStop(1, '#7fc247');
+  grassGrad.addColorStop(0, '#5a7a3c');
+  grassGrad.addColorStop(1, '#3c5528');
   g.fillStyle = grassGrad;
   g.fillRect(-pad, 0, DESIGN_W + 2 * pad, DESIGN_H);
   for (let i = 0; i < 46; i++) {
@@ -79,8 +80,8 @@ export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): G
       g.stroke();
     };
     strokePoly(78, '#8a5c33');
-    strokePoly(64, '#d8a867');
-    strokePoly(46, '#ecc98f');
+    strokePoly(64, '#6e5a44');
+    strokePoly(46, '#8f7558');
     g.setLineDash([16, 26]);
     strokePoly(3, 'rgba(255,255,255,0.22)');
     g.setLineDash([]);
@@ -105,26 +106,27 @@ export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): G
     }),
   );
 
-  // ---- 终点：萝卜脚下的土丘 ----
+  // ---- 终点：南瓜脚下的土丘 ----
   g.fillStyle = 'rgba(0,0,0,0.16)';
   g.beginPath();
-  g.ellipse(carrot.x, carrot.y + 34, 74, 22, 0, 0, Math.PI * 2);
+  g.ellipse(pumpkin.x, pumpkin.y + 34, 74, 22, 0, 0, Math.PI * 2);
   g.fill();
-  g.fillStyle = '#c9995d';
+  g.fillStyle = '#5e4a3a';
   g.beginPath();
-  g.ellipse(carrot.x, carrot.y + 26, 68, 20, 0, 0, Math.PI * 2);
+  g.ellipse(pumpkin.x, pumpkin.y + 26, 68, 20, 0, 0, Math.PI * 2);
   g.fill();
-  g.fillStyle = '#b9854a';
+  g.fillStyle = '#4a3a2e';
   g.beginPath();
-  g.ellipse(carrot.x, carrot.y + 22, 54, 13, 0, 0, Math.PI * 2);
+  g.ellipse(pumpkin.x, pumpkin.y + 22, 54, 13, 0, 0, Math.PI * 2);
   g.fill();
 
   // ---- 散布装饰 ----
+  // 夜色里的小花：紫、橙两色，点缀暗色草地
   const FLOWERS: Array<[string, string]> = [
-    ['#ffffff', '#ffca28'],
-    ['#ffd54f', '#f57f17'],
-    ['#ff8fb1', '#fff'],
-    ['#ffffff', '#ff7043'],
+    ['#b388ff', '#fff176'],
+    ['#ff9f43', '#fff3e0'],
+    ['#7e57c2', '#ffeb3b'],
+    ['#ff7043', '#3a1d05'],
   ];
   for (let i = 0; i < 9; i++) {
     const p = freeSpot(58);
@@ -132,7 +134,7 @@ export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): G
   }
   for (let i = 0; i < 30; i++) {
     const p = freeSpot(56);
-    if (p) drawTuft(g, p.x, p.y, 9 + rng() * 9, rng() > 0.5 ? '#5fae38' : '#71c046');
+    if (p) drawTuft(g, p.x, p.y, 9 + rng() * 9, rng() > 0.5 ? '#4a6b2c' : '#56793a');
   }
   for (let i = 0; i < 14; i++) {
     const p = freeSpot(58);
@@ -159,8 +161,8 @@ export function buildGround(paths: Pt[][], carrot: Pt, seed: number, pad = 0): G
     DESIGN_W / 2, DESIGN_H / 2, DESIGN_H * 0.42,
     DESIGN_W / 2, DESIGN_H / 2, DESIGN_W * 0.72,
   );
-  vig.addColorStop(0, 'rgba(40,30,10,0)');
-  vig.addColorStop(1, 'rgba(40,30,10,0.26)');
+  vig.addColorStop(0, 'rgba(10,6,24,0)');
+  vig.addColorStop(1, 'rgba(10,6,24,0.5)');
   g.fillStyle = vig;
   g.fillRect(-pad, 0, DESIGN_W + 2 * pad, DESIGN_H);
 
@@ -200,16 +202,23 @@ function roundRectBoard(g: CanvasRenderingContext2D, x: number, y: number, w: nu
   g.arcTo(x, y + h, x, y, r);
   g.arcTo(x, y, x + w, y, r);
   g.closePath();
-  g.fillStyle = '#dda45e';
+  g.fillStyle = '#4a3360';
   g.fill();
   g.lineWidth = 4;
-  g.strokeStyle = '#7c4a1e';
+  g.strokeStyle = '#ff9f1c';
   g.stroke();
-  g.fillStyle = '#5b3208';
-  g.font = 'bold 21px system-ui, "PingFang SC", sans-serif';
+  g.fillStyle = '#ffd08a';
+  // 字号按文字宽度自动缩小，保证英文与中文都落在牌面之内
+  const label = t('ground.sign');
+  let size = 21;
+  g.font = `bold ${size}px system-ui, "PingFang SC", sans-serif`;
+  while (size > 11 && g.measureText(label).width > w - 14) {
+    size -= 1;
+    g.font = `bold ${size}px system-ui, "PingFang SC", sans-serif`;
+  }
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('⚠ 怪物入侵', x + w / 2, y + h / 2 + 1);
+  g.fillText(label, x + w / 2, y + h / 2 + 1);
 }
 
 /** 扭曲时每条带的世界高度（设计单位）。越小接缝越少，调用次数越多；这里 360 次，每关只做一次 */
@@ -250,16 +259,17 @@ export function tiltGround(flat: HTMLCanvasElement, pad: number): HTMLCanvasElem
 
 /** 远景：草地底色（梯形外的四角）、天空渐变、两层远山、几朵云 */
 function drawBackdrop(g: CanvasRenderingContext2D): void {
-  g.fillStyle = '#7fc247';
+  g.fillStyle = '#3c5528';
   g.fillRect(0, 0, DESIGN_W, DESIGN_H);
 
+  // 黄昏夜空：深紫到橙
   const sky = g.createLinearGradient(0, 0, 0, Y_TOP);
-  sky.addColorStop(0, '#7ecbf2');
-  sky.addColorStop(1, '#d4f1ff');
+  sky.addColorStop(0, '#1d1238');
+  sky.addColorStop(1, '#e8783a');
   g.fillStyle = sky;
   g.fillRect(0, 0, DESIGN_W, Y_TOP);
 
-  g.fillStyle = '#9fd47a';
+  g.fillStyle = '#3b2a52';
   g.beginPath();
   g.moveTo(0, Y_TOP);
   g.quadraticCurveTo(160, 80, 360, 118);
@@ -270,7 +280,7 @@ function drawBackdrop(g: CanvasRenderingContext2D): void {
   g.closePath();
   g.fill();
 
-  g.fillStyle = '#7dbd55';
+  g.fillStyle = '#2a1d3d';
   g.beginPath();
   g.moveTo(0, Y_TOP);
   g.quadraticCurveTo(220, 118, 470, 132);
@@ -280,7 +290,7 @@ function drawBackdrop(g: CanvasRenderingContext2D): void {
   g.closePath();
   g.fill();
 
-  g.fillStyle = 'rgba(255,255,255,0.85)';
+  g.fillStyle = 'rgba(200,170,230,0.3)';
   const clouds: ReadonlyArray<readonly [number, number, number]> = [
     [200, 50, 26],
     [1010, 36, 32],

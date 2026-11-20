@@ -2,10 +2,12 @@ import type { Scene } from '../core/SceneManager';
 import type { SceneManager } from '../core/SceneManager';
 import { DESIGN_W, DESIGN_H } from '../render/Renderer';
 import { drawCloud, drawFlower, drawTuft } from '../render/decor';
-import { drawCarrot, drawMonster, MONSTER_SKINS } from '../render/sprites';
+import { drawPumpkin, drawMonster, MONSTER_SKINS } from '../render/sprites';
 import { ALL_LEVELS, selection } from '../data/levels';
 import { save } from '../save/SaveManager';
 import { audio } from '../audio/AudioManager';
+import { t, getLang, setLang } from '../i18n';
+import type { Lang } from '../i18n';
 
 interface CloudDef {
   x: number;
@@ -35,8 +37,8 @@ export class MenuScene implements Scene {
     const root = document.createElement('div');
     root.className = 'menu';
     root.innerHTML = `
-      <h1>球球萝卜</h1>
-      <p class="menu-sub">保卫萝卜式 H5 塔防 · 选择关卡开始冒险</p>
+      <h1>${t('app.title')}</h1>
+      <p class="menu-sub">${t('menu.subtitle')}</p>
       <div class="lv-row"></div>
       <p class="tip menu-total"></p>
     `;
@@ -47,11 +49,11 @@ export class MenuScene implements Scene {
       const unlocked = save.isUnlocked(lv.id);
       if (!unlocked) {
         card.disabled = true;
-        card.innerHTML = `<span class="num">🔒</span><span class="nm">${lv.name}</span><span class="st">通关上一关解锁</span>`;
+        card.innerHTML = `<span class="num">🔒</span><span class="nm">${t(lv.name)}</span><span class="st">${t('menu.locked', { n: lv.id - 1 })}</span>`;
       } else {
         const stars = save.starOf(lv.id);
         card.innerHTML =
-          `<span class="num">${lv.id}</span><span class="nm">${lv.name}</span>` +
+          `<span class="num">${lv.id}</span><span class="nm">${t(lv.name)}</span>` +
           `<span class="st">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</span>`;
         card.addEventListener('click', () => {
           selection.current = lv;
@@ -63,7 +65,7 @@ export class MenuScene implements Scene {
     }
     const totalStars = ALL_LEVELS.reduce((n, l) => n + save.starOf(l.id), 0);
     (root.querySelector('.menu-total') as HTMLElement).textContent =
-      `已收集 ⭐${totalStars} / ${ALL_LEVELS.length * 3} · 首次进入请点一下屏幕开启声音`;
+      t('menu.stars', { n: totalStars, max: ALL_LEVELS.length * 3 });
 
     // 右上角静音开关
     const mute = document.createElement('button');
@@ -75,6 +77,18 @@ export class MenuScene implements Scene {
       if (!save.muted) audio.play('click');
     });
     root.appendChild(mute);
+
+    // 语言切换：按钮显示当前语言名，点击切到另一种语言并重绘菜单
+    const lang = document.createElement('button');
+    lang.className = 'btn btn-icon menu-lang';
+    lang.textContent = t('lang.name');
+    lang.addEventListener('click', () => {
+      const next: Lang = getLang() === 'en' ? 'zh' : 'en';
+      audio.play('click');
+      setLang(next);
+      this.scenes.reloadCurrent();
+    });
+    root.appendChild(lang);
 
     this.scenes.uiRoot.appendChild(root);
   }
@@ -94,61 +108,62 @@ export class MenuScene implements Scene {
 
     // ---- 天空 ----
     const sky = ctx.createLinearGradient(0, 0, 0, DESIGN_H * 0.72);
-    sky.addColorStop(0, '#8fdcff');
-    sky.addColorStop(1, '#e6f8ff');
+    sky.addColorStop(0, '#1d1238');
+    sky.addColorStop(0.6, '#4a2a5e');
+    sky.addColorStop(1, '#e8783a');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
 
-    // 太阳 + 缓转的光芒
-    ctx.save();
-    ctx.translate(1120, 105);
-    ctx.rotate(t * 0.15);
-    ctx.fillStyle = 'rgba(255,225,120,0.5)';
-    for (let i = 0; i < 10; i++) {
-      ctx.rotate((Math.PI * 2) / 10);
-      ctx.beginPath();
-      ctx.moveTo(0, -62);
-      ctx.lineTo(13, -92);
-      ctx.lineTo(-13, -92);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.restore();
-    const sunGrad = ctx.createRadialGradient(1120, 105, 10, 1120, 105, 60);
-    sunGrad.addColorStop(0, '#fff3b8');
-    sunGrad.addColorStop(1, '#ffd94d');
-    ctx.fillStyle = sunGrad;
+    // 月亮 + 缓慢闪烁的星星
+    const moonGlow = ctx.createRadialGradient(1120, 105, 40, 1120, 105, 130);
+    moonGlow.addColorStop(0, 'rgba(255,240,190,0.35)');
+    moonGlow.addColorStop(1, 'rgba(255,240,190,0)');
+    ctx.fillStyle = moonGlow;
+    ctx.beginPath();
+    ctx.arc(1120, 105, 130, 0, Math.PI * 2);
+    ctx.fill();
+    const moonGrad = ctx.createRadialGradient(1110, 95, 10, 1120, 105, 60);
+    moonGrad.addColorStop(0, '#fffbe8');
+    moonGrad.addColorStop(1, '#f2e3a8');
+    ctx.fillStyle = moonGrad;
     ctx.beginPath();
     ctx.arc(1120, 105, 55, 0, Math.PI * 2);
     ctx.fill();
+    for (const [sx, sy, sr] of [[240, 70, 2], [420, 150, 1.6], [640, 40, 2.2], [880, 170, 1.4], [1020, 40, 1.8]]) {
+      const tw = 0.5 + 0.5 * Math.sin(t * 2 + sx);
+      ctx.fillStyle = `rgba(255,250,220,${0.4 + tw * 0.5})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     for (const c of this.clouds) drawCloud(ctx, c.x, c.y, c.s, c.alpha);
 
-    // ---- 远山与草地 ----
-    ctx.fillStyle = '#79c857';
+    // ---- 远山（剪影）与草地 ----
+    ctx.fillStyle = '#2a1d3d';
     for (const [x, y, r] of [[180, 640, 330], [700, 680, 380], [1180, 650, 320]]) {
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
     }
     const meadow = ctx.createLinearGradient(0, DESIGN_H * 0.62, 0, DESIGN_H);
-    meadow.addColorStop(0, '#93da63');
-    meadow.addColorStop(1, '#74bd45');
+    meadow.addColorStop(0, '#3e5230');
+    meadow.addColorStop(1, '#25331d');
     ctx.fillStyle = meadow;
     ctx.fillRect(0, DESIGN_H * 0.66, DESIGN_W, DESIGN_H * 0.34);
 
-    drawFlower(ctx, 130, 600, 8, '#ffffff', '#ffca28');
-    drawFlower(ctx, 300, 655, 7, '#ff8fb1', '#ffffff');
-    drawFlower(ctx, 1080, 620, 8, '#ffd54f', '#f57f17');
-    drawFlower(ctx, 950, 668, 6, '#ffffff', '#ff7043');
-    drawTuft(ctx, 220, 640, 12, '#5fae38');
-    drawTuft(ctx, 420, 690, 14, '#71c046');
-    drawTuft(ctx, 850, 645, 11, '#5fae38');
-    drawTuft(ctx, 1180, 685, 13, '#71c046');
+    drawFlower(ctx, 130, 600, 8, '#b388ff', '#fff176');
+    drawFlower(ctx, 300, 655, 7, '#ff9f43', '#fff3e0');
+    drawFlower(ctx, 1080, 620, 8, '#ffb74d', '#5d2a00');
+    drawFlower(ctx, 950, 668, 6, '#b388ff', '#fff176');
+    drawTuft(ctx, 220, 640, 12, '#4a6b2c');
+    drawTuft(ctx, 420, 690, 14, '#56793a');
+    drawTuft(ctx, 850, 645, 11, '#4a6b2c');
+    drawTuft(ctx, 1180, 685, 13, '#56793a');
 
     // ---- 底部角色小剧场（缩小下移，给关卡卡片让位） ----
     const bob = Math.sin(t * 3) * 5;
-    drawCarrot(ctx, DESIGN_W / 2, 600 + bob, 130, 'happy');
+    drawPumpkin(ctx, DESIGN_W / 2, 600 + bob, 130, 'happy');
     drawMonster(ctx, DESIGN_W / 2 - 110, 615, 21, MONSTER_SKINS[0], t * 7, 0.35);
     drawMonster(ctx, DESIGN_W / 2 + 110, 618, 21, MONSTER_SKINS[2], t * 7 + Math.PI, -0.35);
 

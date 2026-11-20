@@ -9,17 +9,17 @@ export interface Cell {
 const COLS = 16;
 const ROWS = 9;
 
-/** 建造网格：预计算哪些格子被路面/萝卜占用，不可建造（支持多条路径） */
+/** 建造网格：预计算哪些格子被路面/南瓜占用，不可建造（支持多条路径） */
 export class Grid {
   private blocked = new Set<number>();
 
-  constructor(pathPolylines: Array<Array<{ x: number; y: number }>>, carrot: { x: number; y: number }) {
+  constructor(pathPolylines: Array<Array<{ x: number; y: number }>>, pumpkin: { x: number; y: number }) {
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
         const cx = col * CELL + CELL / 2;
         const cy = row * CELL + CELL / 2;
         const nearRoad = pathPolylines.some((pts) => distToPolyline(cx, cy, pts) < 58);
-        if (nearRoad || Math.hypot(cx - carrot.x, cy - carrot.y) < 95) {
+        if (nearRoad || Math.hypot(cx - pumpkin.x, cy - pumpkin.y) < 95) {
           this.blocked.add(row * COLS + col);
         }
       }

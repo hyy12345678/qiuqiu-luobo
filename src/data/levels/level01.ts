@@ -3,9 +3,9 @@ import type { LevelDef } from './types';
 /** 第 1 关：教学关，单条 S 路，认识基本塔与道具 */
 export const LEVEL_1: LevelDef = {
   id: 1,
-  name: '青草原',
+  name: 'level.1',
   startGold: 300,
-  carrotHp: 10,
+  pumpkinHp: 10,
   unlockedTowers: ['bottle'],
   paths: [
     [

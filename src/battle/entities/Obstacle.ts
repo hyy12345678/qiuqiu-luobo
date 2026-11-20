@@ -1,6 +1,6 @@
 import type { CombatTarget } from '../target';
 import type { ObstacleKind } from '../../data/obstacles';
-import { drawChest, drawCrate, drawRock } from '../../render/sprites';
+import { drawCandyBucket, drawCoffin, drawTombstone } from '../../render/sprites';
 import { enterUpright } from '../../render/projection';
 
 const TAU = Math.PI * 2;
@@ -45,9 +45,9 @@ export class Obstacle implements CombatTarget {
 
   private drawSprite(ctx: CanvasRenderingContext2D): void {
     const { x, y } = this.pos;
-    if (this.kind === 'chest') drawChest(ctx, x, y);
-    else if (this.kind === 'crate') drawCrate(ctx, x, y);
-    else drawRock(ctx, x, y);
+    if (this.kind === 'chest') drawCandyBucket(ctx, x, y);
+    else if (this.kind === 'crate') drawCoffin(ctx, x, y);
+    else drawTombstone(ctx, x, y);
 
     if (this.flash > 0) {
       ctx.globalAlpha = Math.min(1, this.flash / 0.12) * 0.5;

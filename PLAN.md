@@ -1,116 +1,118 @@
-# 《球球萝卜》H5 塔防游戏 · 开发计划
+English | [中文](PLAN.zh-CN.md)
 
-> 一个致敬《保卫萝卜》玩法的 H5 网页塔防游戏。使用原创美术与原创名称，玩法机制参考经典塔防。
-> 文档版本：v1.0（2026-08-26）
-> 注：本文件是 v1.0 的规划快照。当前进度、与代码的偏差和后续计划见 [docs/PROGRESS.md](./docs/PROGRESS.md) 与 [docs/DEV_PLAN.md](./docs/DEV_PLAN.md)。
+# Qiuqiu Pumpkin · H5 Tower Defense Game · Development Plan
+
+> An H5 web tower defense game that pays homage to the gameplay of Bao Wei Luo Bo (Carrot Fantasy). It uses original art and an original name, and its game mechanics draw on classic tower defense.
+> Document version: v1.0 (2026-08-26)
+> Note: This file is a planning snapshot of v1.0. For current progress, deviations from the code, and later plans, see [docs/PROGRESS.md](./docs/PROGRESS.md) and [docs/DEV_PLAN.md](./docs/DEV_PLAN.md).
 
 ---
 
-## 一、项目概述
+## 1. Project Overview
 
-### 1.1 目标
-做一个可以在手机浏览器（微信内置浏览器 / Safari / Chrome）流畅运行的横版塔防 H5 游戏：
-- 玩法核心：怪物沿固定路径进攻，玩家在路边空地建塔防守，保护地图终点的**萝卜**不被吃掉。
-- 特色机制（还原保卫萝卜精髓）：地图上散布**宝箱/云朵等道具障碍**，打掉后掉金币并解锁新塔位。
-- 单机为主，进度存 localStorage，无需服务器。
+### 1.1 Goal
+Build a landscape tower defense H5 game that runs smoothly in mobile browsers (WeChat built-in browser, Safari, Chrome):
+- Core gameplay: monsters march along a fixed path. The player builds towers on empty ground beside the path to defend the **pumpkin** at the end of the map from being eaten.
+- Signature mechanic (recreating the essence of Carrot Fantasy): **candy buckets, clouds, and other obstacle items** are scattered across the map. Destroying them drops gold coins and unlocks new tower slots.
+- Mainly single player. Progress is saved in localStorage, so no server is needed.
 
-### 1.2 首版范围（Scope）
-| 内容 | 数量 |
+### 1.2 First Release Scope
+| Item | Quantity |
 |------|------|
-| 关卡 | 5 个 |
-| 塔种类 | 6 种（每塔 3 级） |
-| 怪物种类 | 5 种 + Boss |
-| 波次 | 数据驱动，每关 4~8 波（v1.0 原规划为 10~15 波，2026-11 决定先保持现状，见 docs/DEV_PLAN.md D-2） |
-| 平台 | 移动端优先，桌面浏览器可玩（鼠标操作） |
+| Levels | 5 |
+| Tower types | 6 (3 levels each) |
+| Monster types | 5 + Boss |
+| Waves | Data-driven, 4 to 8 waves per level (the original v1.0 plan was 10 to 15 waves. In 2026-11 we decided to keep the current count for now. See docs/DEV_PLAN.md D-2) |
+| Platform | Mobile first, playable in desktop browsers (mouse controls) |
 
 ---
 
-## 二、技术选型
+## 2. Technology Choices
 
-### 推荐方案：Vite + TypeScript + 原生 Canvas 2D
+### Recommended Option: Vite + TypeScript + Native Canvas 2D
 
-| 项 | 选择 | 理由 |
+| Item | Choice | Reason |
 |----|------|------|
-| 构建 | Vite | 零配置启动、热更新快、`npm run build` 产出纯静态文件，任意静态托管可部署 |
-| 语言 | TypeScript | 塔怪子弹实体类型多，类型系统能挡住大部分低级错误 |
-| 渲染 | 原生 Canvas 2D API | 本游戏无物理需求，2D 绘制完全够用；零依赖、体积小、可控性强 |
-| UI | DOM Overlay（HTML/CSS 叠在 canvas 上方） | 按钮、菜单、文字排版用 DOM 比 canvas 画 UI 简单得多，触控事件也好处理 |
-| 音频 | Web Audio API | 注意移动端必须在首次触摸后才能出声（自动播放限制） |
-| 存档 | localStorage | 关卡星级、解锁进度 |
-| 状态管理 | 不需要框架，场景类 + 事件总线即可 | |
+| Build | Vite | Starts with zero configuration, fast hot reload, and `npm run build` produces plain static files that can be deployed on any static host |
+| Language | TypeScript | Towers, monsters, and bullets form many entity types, and the type system catches most basic mistakes |
+| Rendering | Native Canvas 2D API | This game needs no physics, and 2D drawing is more than enough. Zero dependencies, small size, and full control |
+| UI | DOM overlay (HTML/CSS placed on top of the canvas) | Buttons, menus, and text layout are much simpler with the DOM than with canvas drawing, and touch events are easy to handle |
+| Audio | Web Audio API | On mobile, sound only plays after the first touch because of autoplay restrictions |
+| Save data | localStorage | Level stars and unlock progress |
+| State management | No framework needed. Scene classes plus an event bus are enough | |
 
-**备选**：Phaser 3（成熟游戏框架，场景/补间/输入全套现成，代价是 ~1MB 依赖和框架学习成本）。
-如果希望更快堆内容可以考虑，但本项目实体逻辑不复杂，原生方案更轻、更可控。
+**Alternative**: Phaser 3 (a mature game framework with ready-made scenes, tweens, and input. The cost is about 1 MB of dependencies and the learning curve of the framework).
+It is worth considering if you want to add content quickly, but the entity logic in this project is not complex, so the native approach is lighter and easier to control.
 
 ---
 
-## 三、玩法设计
+## 3. Gameplay Design
 
-### 3.1 核心循环
+### 3.1 Core Loop
 
 ```
-进入关卡 → 观察路径与可建造位 → 建塔/升级
-   ↑                                    ↓
-   └──── 用赏金强化防线 ← 击杀怪物得金币 ← 怪物沿路径进攻 ← 波次开始
-                                        ↓
-                              怪到达终点啃萝卜（萝卜扣血）
-                                        ↓
-                          萝卜血量归零 → 失败 / 全部波次清完 → 结算(1~3星)
+Enter level → Study the path and build spots → Build or upgrade towers
+   ↑                                                    ↓
+   └──── Strengthen defenses with bounty ← Kill monsters for gold ← Monsters advance along the path ← Wave starts
+                                                        ↓
+                              Monster reaches the end and nibbles the pumpkin (pumpkin loses HP)
+                                                        ↓
+                          Pumpkin HP reaches zero → defeat / all waves cleared → settlement (1 to 3 stars)
 ```
 
-- **萝卜**：初始 10 点血，普通怪啃一口 -1，Boss 啃 -3。血量变化伴随萝卜形态变化（完好 → 缺口 → 半截）。
-- **星级结算**：剩血 ≥8 → 3 星；≥4 → 2 星；>0 → 1 星。星级用于解锁后续关卡（至少 1 星解锁下一关）。
-- **加速**：提供 1x / 2x 倍速按钮。
-- **提前召唤**：波次间隙点击「下一波」提前开怪，按剩余等待时间折算奖励金币（高手向技巧）。
+- **Pumpkin**: starts with 10 HP. A regular monster takes off 1 HP per bite, and a Boss takes off 3. The pumpkin's appearance changes as its HP drops (intact → chipped → halved).
+- **Star rating**: remaining HP ≥ 8 → 3 stars; ≥ 4 → 2 stars; > 0 → 1 star. Stars unlock later levels (at least 1 star unlocks the next level).
+- **Speed-up**: 1x / 2x speed buttons.
+- **Early call**: tap "Next Wave" during the gap between waves to send the next wave early. The bonus gold is calculated from the remaining wait time (an advanced tactic for experienced players).
 
-### 3.2 塔（6 种，首版数值，待调优）
+### 3.2 Towers (6 types, first-release values, to be tuned)
 
-| 塔 | 造价 | 定位 | 特性 |
+| Tower | Cost | Role | Traits |
 |----|------|------|------|
-| 瓶子塔 | 100 | 基础单体速射 | 射速快、性价比高，前期主力 |
-| 冰冻星 | 140 | 控制 | 命中减速 40%，持续 2 秒 |
-| 多重箭 | 160 | 多目标 | 同时锁定最多 3 个目标 |
-| 太阳花 | 180 | 近距离 AOE | 持续灼烧周围一圈所有敌人 |
-| 风扇塔 | 220 | 直线穿透 | 弹道贯穿一条直线上的所有敌人 |
-| 火箭塔 | 260 | 高伤溅射 | 慢速高伤 + 范围爆炸，对付密集怪群 |
+| Potion Tower | 100 | Basic single-target rapid fire | Fast firing rate and good value. The early-game mainstay |
+| Spider Web | 140 | Control | Slows hit targets by 40% for 2 seconds |
+| Bat Arrow | 160 | Multi-target | Locks onto up to 3 targets at once |
+| Candle Tower | 180 | Short-range AOE | Keeps burning every enemy in a ring around it |
+| Witch Broom | 220 | Linear piercing | Its projectile passes through every enemy on a straight line |
+| Pumpkin Cannon | 260 | High-damage splash | Slow but high damage, with area explosions that handle dense monster groups |
 
-- 每座塔可升级至 Lv3：伤害/射程/攻速逐级提升，升级费用约为造价的 0.8x / 1.2x。
-- 可出售，返还累计投入的 70%。
-- 点击已建的塔显示射程圈 + 升级/出售按钮。
+- Each tower can be upgraded to Lv3. Damage, range, and attack speed improve at each level. Upgrade costs are about 0.8x and 1.2x the build cost.
+- Towers can be sold for 70% of the total invested cost.
+- Clicking a built tower shows its range circle and the upgrade and sell buttons.
 
-### 3.3 怪物（5 种 + Boss）
+### 3.3 Monsters (5 types + Boss)
 
-| 怪 | 血量 | 速度 | 赏金 | 特点 |
+| Monster | HP | Speed | Bounty | Traits |
 |----|------|------|------|------|
-| 小兵 | 100 | 1.0 | 10 | 标准单位 |
-| 飞毛腿 | 60 | 1.8 | 12 | 快速突进，考验减速搭配 |
-| 铁壳 | 400 | 0.7 | 25 | 肉盾，吸收火力 |
-| 医生怪 | 150 | 1.0 | 20 | 周期性治疗周围友军（逼玩家集火） |
-| 自爆虫 | 80 | 1.4 | 15 | 死亡时原地爆炸，波及邻近怪物（同归于尽型彩蛋） |
-| Boss | 3000 | 0.5 | 200 | 关底出场，大体型，受击有硬直表现 |
+| Little Ghost | 100 | 1.0 | 10 | Standard unit |
+| Black Cat | 60 | 1.8 | 12 | Rushes forward quickly, testing the use of slows |
+| Mummy | 400 | 0.7 | 25 | Tank that absorbs firepower |
+| Witch | 150 | 1.0 | 20 | Periodically heals nearby allies, forcing the player to focus fire |
+| Pumpkin Bomb | 80 | 1.4 | 15 | Explodes on the spot when it dies, damaging nearby monsters (an easter egg of mutual destruction) |
+| Boss | 3000 | 0.5 | 200 | Appears at the end of the level. Large body with a hit-stun animation |
 
-（数值均为基准值，随关卡难度乘以系数缩放。）
+(All values are baseline. They are scaled by a difficulty factor for each level.)
 
-### 3.4 地图道具（本作特色，必须做）
+### 3.4 Map Items (a signature feature, must be implemented)
 
-地图的可建造格上会摆放**宝箱 / 云朵 / 大石头 / 蘑菇**等障碍物：
-- 占着位置 → 不能在该格建塔；
-- 塔可以攻击它们（有自己的血条）；
-- 打碎后掉落金币奖励（宝箱给大额金币），格子变为可建造。
-- 这是保卫萝卜最有辨识度的机制：开局布阵要先规划「先打哪个道具」。
+Obstacles such as **candy buckets, clouds, tombstones, and mushrooms** are placed on the buildable tiles of the map:
+- They occupy the tile, so no tower can be built on it.
+- Towers can attack them, and they have their own HP bars.
+- Destroying one drops gold coins (candy buckets drop large amounts), and the tile becomes buildable.
+- This is the most recognizable mechanic of Carrot Fantasy. At the start, players must plan which item to break first.
 
-### 3.5 关卡设计
+### 3.5 Level Design
 
-- 画布设计分辨率 **1280×720（16:9，横屏）**，格子尺寸 80px → 网格 **16×9**。
-- 每关由 JSON 配置：路径拐点序列、可建造格集合、障碍物列表、初始金币、波次表。
-- 5 关梯度：
-  1. **教学关**：单条 S 路径，只有瓶子塔可用，6 波小兵；
-  2. **双口关**：两条入怪口汇合，解锁冰冻星，引入飞毛腿；
-  3. **道具关**：大量宝箱障碍，鼓励打道具滚经济，解锁太阳花；
-  4. **迷宫关**：长回旋路径，解锁风扇/火箭，出现医生怪；
-  5. **Boss 关**：综合考验，第 8 波（最后一波）Boss 登场。（原规划为第 15 波，随波数调整。）
+- Canvas design resolution is **1280×720 (16:9, landscape)**. Tile size is 80 px, giving a grid of **16×9**.
+- Each level is configured in JSON: the sequence of path corner points, the set of buildable tiles, the list of obstacles, the starting gold, and the wave table.
+- Five levels, in order of difficulty:
+  1. **Tutorial level**: a single S-shaped path. Only the Potion Tower is available, with 6 waves of little ghosts.
+  2. **Two-gate level**: two enemy entrances merge. Spider Web is unlocked and Black Cats are introduced.
+  3. **Item level**: many candy bucket obstacles, encouraging players to roll items for economy. Candle Tower is unlocked.
+  4. **Maze level**: a long winding path. Witch Broom and Pumpkin Cannon towers are unlocked, and Witch monsters appear.
+  5. **Boss level**: a combined challenge. The Boss appears in wave 8 (the final wave). (The original plan put it in wave 15, and it was changed to match the wave count.)
 
-### 3.6 波次配置格式（数据驱动示例）
+### 3.6 Wave Configuration Format (data-driven example)
 
 ```json
 {
@@ -126,36 +128,36 @@
 
 ---
 
-## 四、技术架构
+## 4. Technical Architecture
 
-### 4.1 模块划分
+### 4.1 Module Breakdown
 
 ```
-core      游戏主循环（固定时间步 update + rAF render）、场景管理、事件总线
-scenes    MenuScene（选关）/ BattleScene（战斗）/ 结算弹窗（DOM）
-battle    战斗域逻辑：Grid 网格、Path 路径插值、WaveManager、Economy 经济
-          实体：Tower / Monster / Bullet / Carrot / Obstacle，对象池复用
-render    Renderer 分层绘制（背景离屏缓存 → 实体 → 特效）、程序化精灵
-ui        HUD、建塔菜单、塔操作菜单、结算面板 —— 全部 DOM 实现
-audio     AudioManager：手势解锁、bgm/sfx 播放、音量开关
-data      towers.ts / monsters.ts 数值配置 + levels/*.json 关卡配置
-save      localStorage 封装（进度、星级、静音偏好）
-input     Pointer Events 统一处理触摸/鼠标，坐标换算到设计分辨率
+core      Main game loop (fixed time step update + rAF render), scene management, event bus
+scenes    MenuScene (level select) / BattleScene (battle) / settlement popup (DOM)
+battle    Battle logic: Grid (tile grid), Path (path interpolation), WaveManager, Economy
+          Entities: Tower / Monster / Bullet / Pumpkin / Obstacle, reused through object pools
+render    Renderer draws in layers (off-screen cached background → entities → effects), procedural sprites
+ui        HUD, build menu, tower action menu, settlement panel. All implemented in the DOM
+audio     AudioManager: unlock on gesture, bgm/sfx playback, volume and mute toggle
+data      towers.ts / monsters.ts value configs + levels/*.json level configs
+save      localStorage wrapper (progress, stars, mute preference)
+input     Unified touch and mouse handling with Pointer Events, converting coordinates to the design resolution
 ```
 
-关键实现决策：
+Key implementation decisions:
 
-- **主循环**：`update(dt)` 固定步长（如 1/60s，累加器模式）保证不同刷新率下速度一致；`render()` 跟随 rAF。倍速 = dt × 倍率。
-- **分层渲染**：地面、路径、装饰一次性画进离屏 canvas 缓存，每帧只 drawImage 一次；动态实体单独一层；DOM 负责 UI。
-- **寻路**：不做 A*。怪物按配置好的路径拐点做匀速插值 + 拐角转向即可（塔防惯例）。
-- **索敌**：默认「走得最远者优先」（first），个别塔可配 strongest/closest。
-- **碰撞**：圆形碰撞（半径 vs 半径），足够且最快。
-- **对象池**：子弹、飘字、粒子高频创建销毁，必须池化，避免 GC 卡顿。
-- **坐标系统**：内部一律用设计分辨率坐标（1280×720），Renderer 统一做缩放变换和 DPR 适配，逻辑代码完全不感知屏幕尺寸。
+- **Main loop**: `update(dt)` uses a fixed step (such as 1/60 s, accumulator pattern) so speed stays the same at any refresh rate. `render()` follows rAF. Speed-up = dt × multiplier.
+- **Layered rendering**: ground, path, and decorations are drawn once into an off-screen canvas cache, and each frame only draws that cache once with drawImage. Dynamic entities get their own layer. The DOM handles the UI.
+- **Pathfinding**: no A*. Monsters move at constant speed by interpolating between the configured path corner points and turn at corners (standard practice in tower defense).
+- **Targeting**: the default is "furthest along the path first" (first). Some towers can be set to strongest or closest.
+- **Collision**: circle collision (radius vs radius). It is sufficient and the fastest.
+- **Object pooling**: bullets, floating text, and particles are created and destroyed very often, so they must be pooled to avoid GC stutter.
+- **Coordinate system**: internal logic always uses the design resolution (1280×720). The Renderer applies scaling and DPR adjustment in one place, so the logic code never depends on the screen size.
 
-### 4.2 目录结构
+### 4.2 Directory Structure
 
-> 以下是 v1.0 规划时的设计。实际实现有几处不同：UI 没有单独拆出 `ui/` 目录，而是写在 `BattleScene.ts` 中；关卡使用 TypeScript 对象（类型为 `LevelDef`），没有使用 JSON；没有 `ObjectPool.ts`、`Carrot.ts`，素材目录 `public/assets/` 也不存在。原因是 v1.0 优先保证玩法跑通，并保留类型检查。具体差异见 [docs/PROGRESS.md 第五节](./docs/PROGRESS.md#五文档与代码偏差)，实际目录见 [docs/ARCHITECTURE.md 第二节](./docs/ARCHITECTURE.md)。
+> The following is the design from the v1.0 planning stage. The actual implementation differs in several places. The UI is not split into a separate `ui/` directory and is written in `BattleScene.ts`. Levels use TypeScript objects (typed as `LevelDef`) instead of JSON. There is no `ObjectPool.ts` or `Pumpkin.ts`, and the asset directory `public/assets/` does not exist. v1.0 prioritized getting the gameplay working and keeping type checking. For the specific differences, see [docs/PROGRESS.md section 5](./docs/PROGRESS.md#5-document-and-code-deviations). For the actual directory layout, see [docs/ARCHITECTURE.md section 2](./docs/ARCHITECTURE.md).
 
 ```
 qiuqiu-luobo/
@@ -164,11 +166,11 @@ qiuqiu-luobo/
 ├── vite.config.ts
 ├── tsconfig.json
 ├── public/
-│   └── assets/              # 后期放入图片/音效素材
+│   └── assets/              # Image and sound assets added later
 ├── src/
-│   ├── main.ts              # 入口：初始化、挂载循环
+│   ├── main.ts              # Entry point: initialization, starts the loop
 │   ├── core/
-│   │   ├── Game.ts          # 循环、倍速、暂停
+│   │   ├── Game.ts          # Loop, speed-up, pause
 │   │   ├── SceneManager.ts
 │   │   └── EventBus.ts
 │   ├── scenes/
@@ -184,15 +186,15 @@ qiuqiu-luobo/
 │   │       ├── Tower.ts
 │   │       ├── Monster.ts
 │   │       ├── Bullet.ts
-│   │       ├── Carrot.ts
+│   │       ├── Pumpkin.ts
 │   │       └── Obstacle.ts
 │   ├── render/
-│   │   ├── Renderer.ts      # 缩放适配、DPR、分层
-│   │   └── sprites/         # 程序化绘制函数（塔/怪/萝卜/特效）
+│   │   ├── Renderer.ts      # Scaling, DPR, layers
+│   │   └── sprites/         # Procedural drawing functions (towers / monsters / pumpkin / effects)
 │   ├── ui/
 │   │   ├── Hud.ts
 │   │   ├── BuildMenu.ts
-│   │   └── Panels.ts        # 暂停/结算/胜利弹窗
+│   │   └── Panels.ts        # Pause / settlement / victory popups
 │   ├── audio/AudioManager.ts
 │   ├── save/SaveManager.ts
 │   ├── data/
@@ -205,84 +207,85 @@ qiuqiu-luobo/
 
 ---
 
-## 五、移动端适配 & 交互
+## 5. Mobile Adaptation and Interaction
 
-| 项 | 方案 |
+| Item | Approach |
 |----|------|
-| 屏幕方向 | 横屏设计；竖屏时显示「请旋转手机」遮罩（也支持桌面直接玩） |
-| viewport | `width=device-width, initial-scale=1, user-scalable=no`，禁双击缩放 |
-| 缩放 | 等比 letterbox：canvas 按窗口 fit 到 16:9，居中，两侧留黑边 |
-| 清晰度 | canvas 物理像素 = 显示尺寸 × devicePixelRatio，避免模糊 |
-| 触控 | Pointer Events 统一处理；所有可点元素热区 ≥ 44px；`touch-action: none` 防滚动误触 |
-| 音频 | 首次触摸解锁 AudioContext；提供静音按钮并存档偏好 |
-| 性能预算 | 中端手机稳定 60fps：对象池 + 背景缓存 + 粒子上限 + 避免 per-frame 对象分配 |
+| Screen orientation | Landscape design. In portrait mode, show a "Please rotate your phone" overlay (desktop play also works) |
+| Viewport | `width=device-width, initial-scale=1, user-scalable=no`, which disables double-tap zoom |
+| Scaling | Letterbox at a fixed ratio: the canvas fits the window at 16:9, is centered, and has black bars on both sides |
+| Sharpness | Canvas physical pixels = display size × devicePixelRatio, to avoid blur |
+| Touch | Pointer Events for all input. Every clickable element has a hit area of at least 44 px. `touch-action: none` prevents accidental scrolling |
+| Audio | The first touch unlocks AudioContext. A mute button is provided and the preference is saved |
+| Performance budget | Stable 60 fps on mid-range phones: object pools, background cache, particle cap, and no per-frame object allocation |
 
-交互流程：
-- 点**空的可建造格** → 弹出建塔面板（展示 6 塔图标与价格，余额不足置灰）；
-- 点**已建塔** → 显示射程圈 + 升级（含下级预览）/ 出售按钮；
-- 点**波次入口区域** → 提前召唤；
-- HUD 常驻：金币数、当前波次 x/N、萝卜血量、暂停、倍速、静音。
-
----
-
-## 六、美术与音频方案（零素材起步）
-
-**原则：先程序化绘制保证可玩，素材后期整体替换。**
-
-- 第一阶段所有形象用 Canvas 绘制的卡通几何图形：萝卜带表情、塔是圆角造型 + 顶饰区分、怪物是果冻色小团子（眼睛 + 形变走路动画，不需要帧图）。
-- 动效靠代码：受击白闪、怪死亡缩放消失 + 金币飘字、萝卜被咬抖动、塔攻击后坐力、火箭尾焰粒子。
-- 后期替换路线（任选）：免费素材包（kenney.nl 的 TD 素材可直接商用）／ AI 生成素材 ／ 手绘扫描。
-- ⚠️ 合规：不使用《保卫萝卜》官方任何图片、音频与名称，全部原创。
-
-音频清单：战斗 BGM、菜单 BGM、sfx（建塔 / 各塔射击 / 命中 / 怪死 / 金币 / 啃萝卜 / 胜利 / 失败 / 按钮）。第一阶段用 Web Audio 合成的简易音效顶替，后期换采样。
+Interaction flow:
+- Tapping an **empty buildable tile** opens the build panel, which shows the 6 tower icons and prices. Towers that the player cannot afford are grayed out.
+- Tapping a **built tower** shows its range circle and the upgrade (with a preview of the next level) and sell buttons.
+- Tapping the **wave entry area** sends the next wave early.
+- The HUD always shows gold, current wave x/N, pumpkin HP, pause, speed-up, and mute.
 
 ---
 
-## 七、开发里程碑
+## 6. Art and Audio Plan (starting with no assets)
 
-| 阶段 | 内容 | 预估 | 验收标准 |
-|------|------|------|----------|
-| ✅ **M0 脚手架**（含美术升级 v0.2：手绘卡通风地面/角色） | Vite+TS 初始化、canvas 适配与缩放、游戏循环、场景切换骨架、事件总线 | 0.5 天 | 手机浏览器打开显示正确比例的画面，帧率正常 |
-| ✅ **M1 可玩原型** | 单路径 + 瓶子塔 + 小兵 + 3 波怪 + 金币击杀奖励 + 胜负判定 | 2~3 天 | 能完整打完一局：建塔→防守→胜/败，核心循环成立 |
-| ✅ **M2 玩法完整** | 六塔五怪 + 升级出售 + 波次表驱动 + 倍速/暂停 + 地图道具障碍 + 星级结算 + 提前召唤 | 3~4 天 | 用 JSON 配置就能产出一张新关卡的完整体验 |
-| ✅ **M3 内容体验** | 5 个关卡（含双入口/Boss 关）+ 选关界面（星级解锁）+ 合成音效与 BGM + 静音开关 + 进度存档 | 2~3 天 | 从选关到通关全流程顺滑，有「游戏感」 |
-| ✅ **M4 发布打磨** | 安全区适配、切后台自动暂停、音频生命周期、DPR 封顶、渲染零分配、防误触（退出走暂停面板）、README | 1~2 天 | 主流真机 60fps、微信内可正常游玩、刷新后进度保留 |
+**Principle: draw everything procedurally first so the game is playable, then replace the assets all at once later.**
 
-总计约 **9~13 天**（业余时间节奏可拉长，里程碑之间随时可停下来玩）。
+- In the first phase, every figure is a cartoon shape drawn on Canvas: the pumpkin has a face, towers are rounded shapes with top ornaments to tell them apart, and monsters are jelly-colored blobs with eyes and a shape-changing walk animation. No frame images are needed.
+- Motion effects come from code: a white flash when hit, monsters shrink and fade on death with floating gold text, the pumpkin shakes when bitten, towers recoil after firing, and rocket exhaust particles.
+- Replacement options for later (pick any): free asset packs (Kenney's TD assets can be used commercially), AI-generated assets, or hand-drawn scans.
+- ⚠️ Compliance: do not use any official images, audio, or names from Carrot Fantasy. Everything is original.
 
-每个里程碑结束都是一个可玩的存档点，M1 完成即有最小可玩版本。
-
-> **项目状态：v1.0 全部里程碑完成（2026-08-26）。** 后续扩展方向见第十节。
+Audio list: battle BGM, menu BGM, and sound effects (building a tower / each tower firing / hit / monster death / gold / pumpkin bitten / victory / defeat / button). In the first phase, simple sound effects synthesized with Web Audio stand in. Sampled sounds replace them later.
 
 ---
 
-## 八、风险与应对
+## 7. Development Milestones
 
-| 风险 | 应对 |
+| Phase | Content | Estimate | Acceptance Criteria |
+|------|------|----------|----------|
+| ✅ **M0 Scaffold** (includes art upgrade v0.2: hand-drawn cartoon ground and characters) | Vite + TS setup, canvas adaptation and scaling, game loop, scene switching skeleton, event bus | 0.5 day | Opens in a mobile browser with the correct aspect ratio and a normal frame rate |
+| ✅ **M1 Playable prototype** | Single path + Potion Tower + little ghosts + 3 monster waves + gold rewards for kills + win/loss check | 2 to 3 days | A full round can be played: build, defend, win or lose. The core loop works |
+| ✅ **M2 Complete gameplay** | 6 towers, 5 monsters + upgrade and sell + wave table driven + speed-up and pause + map item obstacles + star settlement + early call | 3 to 4 days | A new level can be produced from a JSON config and provide a complete experience |
+| ✅ **M3 Content experience** | 5 levels (including the two-gate and Boss levels) + level select screen (star unlocks) + synthesized sound effects and BGM + mute toggle + progress save | 2 to 3 days | Smooth flow from level select to clearing the game, with a sense of "game feel" |
+| ✅ **M4 Release polish** | Safe-area adaptation, auto-pause when switching apps, audio lifecycle, DPR cap, zero allocation in rendering, accidental-tap prevention (exit goes through the pause panel), README | 1 to 2 days | Mainstream real devices at 60 fps, playable inside WeChat, and progress kept after refresh |
+
+Total: about **9 to 13 days** (the pace can be stretched for part-time work, and you can stop and play at any milestone boundary).
+
+Each milestone ends at a playable save point. Once M1 is finished, there is a minimal playable version.
+
+> **Project status: all v1.0 milestones completed (2026-08-26).** For future expansion directions, see section 10.
+
+---
+
+## 8. Risks and Mitigations
+
+| Risk | Mitigation |
 |------|------|
-| 微信/iOS 音频自动播放限制 | 首次触摸统一解锁 AudioContext，音频模块最先做好降级（无声不崩溃） |
-| 小屏点击精度差 | 热区放大 + 网格吸附建塔；建塔面板用底部抽屉而非跟随手指的小浮窗 |
-| 低端机卡顿 | 背景离屏缓存、对象池、粒子上限、避免闭包分配；M4 用真机 profile |
-| 美术能力不足导致观感差 | 程序化卡通风格本身就是保底方案；配色统一（暖色草地 + 高饱和角色）先立住气质 |
-| 法律合规 | 名称、美术、音频全原创，仅借鉴玩法机制（机制不受版权保护） |
-| 数值失衡（太难/太简单） | 所有数值集中在 data/ 配置中，支持调试快捷键（+金币、跳波次），尽早找真人试玩 |
+| WeChat and iOS limit audio autoplay | Unlock AudioContext on the first touch. Build the audio module first with graceful fallback (silent, no crash) |
+| Poor tap accuracy on small screens | Enlarge hit areas and snap tower placement to the grid. Use a bottom drawer for the build panel instead of a small floating panel that follows the finger |
+| Stutter on low-end devices | Background off-screen cache, object pools, particle cap, and avoid closure allocations. Profile on real devices in M4 |
+| Weak art skills make the game look poor | The procedural cartoon style is itself the fallback. Keep a unified palette (warm grass and saturated characters) to set the look early |
+| Legal compliance | Name, art, and audio are all original. Only the gameplay mechanics are borrowed (mechanics are not protected by copyright) |
+| Unbalanced values (too hard or too easy) | Keep all values in the data/ config. Provide debug shortcuts (add gold, skip waves) and get real playtesters early |
 
 ---
 
-## 九、待确认的决策点
+## 9. Decision Points to Confirm
 
-开工前需要拍板的三件事（均有默认推荐值，不回复则按推荐执行）：
+Three things need a decision before work starts. Each has a recommended default, and if there is no reply, the recommendation is followed:
 
-1. **技术栈**：推荐 Vite + TypeScript + 原生 Canvas（备选 Phaser 3）。
-2. **屏幕方向**：推荐横屏 1280×720 还原经典（备选竖屏，更适合单手地铁玩，但地图纵深受限）。
-3. **首版是否要联网功能**（排行榜/分享成绩）：推荐不要，纯单机 + localStorage，保持零服务器成本。
+1. **Tech stack**: recommended Vite + TypeScript + native Canvas (alternative: Phaser 3).
+2. **Screen orientation**: recommended landscape 1280×720 to match the classic game (alternative: portrait, which suits one-handed play on the subway but limits map depth).
+3. **Online features in the first release** (leaderboards / score sharing): recommended no. Keep it single player with localStorage, so server costs stay at zero.
 
 ---
 
-## 十、后续可扩展方向（本期不做，仅记录）
+## 10. Possible Future Directions (not in this release, recorded only)
 
-- 更多关卡与主题地形（雪地/沙漠/地下洞穴换皮）
-- 飞行怪（走捷径航线）与专属防空塔
-- 塔的技能主动释放（保卫萝卜 2 的技能塔）
-- 成就系统、每日挑战、无尽模式
-- 微信分享战绩海报
+- More levels and themed terrain (snow, desert, and underground cave reskins)
+- Flying monsters (taking shortcut routes) and dedicated anti-air towers
+- Active tower skills (the skill towers from Carrot Fantasy 2)
+- Achievement system, daily challenges, and endless mode
+- WeChat share poster for battle results
+

@@ -18,8 +18,8 @@ import { applyBlast } from '../battle/explode';
 import type { Blast } from '../battle/explode';
 import { buildGround, tiltGround } from '../render/ground';
 import type { GroundBuild } from '../render/ground';
-import { drawCarrot } from '../render/sprites';
-import type { CarrotMood, MonsterSkin } from '../render/sprites';
+import { drawPumpkin } from '../render/sprites';
+import type { PumpkinMood, MonsterSkin } from '../render/sprites';
 import { roundRectPath } from '../render/decor';
 import { DESIGN_W, DESIGN_H } from '../render/Renderer';
 import {
@@ -41,6 +41,8 @@ import { OBSTACLES } from '../data/obstacles';
 import { ALL_LEVELS, selection } from '../data/levels';
 import { save } from '../save/SaveManager';
 import { audio } from '../audio/AudioManager';
+// 参数名 t 常用于塔对象，所以翻译函数统一用 tr 引用
+import { t as tr, getLang } from '../i18n';
 
 const BANNER_DUR = 1.9;
 
@@ -51,7 +53,7 @@ const SKILL_PER_KILL = 5;
 const SKILL_SLOW_RATIO = 0.15;
 const SKILL_SLOW_DUR = 3;
 
-/** 可参与深度排序的绘制对象（塔、道具、怪物、萝卜） */
+/** 可参与深度排序的绘制对象（塔、道具、怪物、南瓜） */
 interface Depthed {
   readonly depthY: number;
   render(ctx: CanvasRenderingContext2D): void;
@@ -77,12 +79,12 @@ const HEAL_RADIUS = 90;
 const HEAL_INTERVAL = 2.5;
 
 const TOWER_ICON: Record<TowerKind, string> = {
-  bottle: '💧',
-  frost: '❄️',
-  multishot: '🏹',
-  sunflower: '🌻',
-  fan: '🌀',
-  rocket: '🚀',
+  bottle: '🧪',
+  frost: '🕸️',
+  multishot: '🦇',
+  sunflower: '🕯️',
+  fan: '🧹',
+  rocket: '🎃',
 };
 
 /** 战斗场景：读 selection.current 关卡配置，支持多路径 / 音效 / 存档 */
@@ -91,7 +93,7 @@ export class BattleScene implements Scene {
 
   private level = selection.current;
   private paths: Path[] = [];
-  private carrotPos = { x: 0, y: 0 };
+  private pumpkinPos = { x: 0, y: 0 };
   private grid!: Grid;
   private economy!: Economy;
   private waves!: WaveManager;
@@ -102,7 +104,7 @@ export class BattleScene implements Scene {
   private fx = new Effects();
   private healCd = new Map<Monster, number>();
 
-  private carrotHp = 10;
+  private pumpkinHp = 10;
   private ended = false;
   private time = 0;
   private shake = 0;
@@ -121,10 +123,10 @@ export class BattleScene implements Scene {
   private buildOptionBtns = new Map<TowerKind, HTMLButtonElement>();
   private buildConfirmBtn: HTMLButtonElement | null = null;
   private selectedTower: Tower | null = null;
-  /** 统一深度排序列表（塔、道具、怪物、萝卜），每帧复用 */
+  /** 统一深度排序列表（塔、道具、怪物、南瓜），每帧复用 */
   private depthList: Depthed[] = [];
-  /** 萝卜作为深度列表中的一项，depthY 在 enter 时设定 */
-  private carrotView = { depthY: 0, render: (ctx: CanvasRenderingContext2D): void => this.renderCarrot(ctx) };
+  /** 南瓜作为深度列表中的一项，depthY 在 enter 时设定 */
+  private pumpkinView = { depthY: 0, render: (ctx: CanvasRenderingContext2D): void => this.renderPumpkin(ctx) };
   /** 怪物 + 障碍物的合并列表（每帧复用，只能同步使用，不要保存引用） */
   private targetBuf: CombatTarget[] = [];
   private offFns: Array<() => void> = [];
@@ -146,11 +148,11 @@ export class BattleScene implements Scene {
     // ---- 状态重置 ----
     this.paths = this.level.paths.map((cells) => new Path(cells));
     const end = this.paths[0].points[this.paths[0].points.length - 1];
-    this.carrotPos = { x: end.x + 4, y: end.y - 10 };
-    this.carrotView.depthY = this.carrotPos.y;
+    this.pumpkinPos = { x: end.x + 4, y: end.y - 10 };
+    this.pumpkinView.depthY = this.pumpkinPos.y;
     this.energy = 0;
     this.skillFlash = 0;
-    this.grid = new Grid(this.paths.map((p) => p.points), this.carrotPos);
+    this.grid = new Grid(this.paths.map((p) => p.points), this.pumpkinPos);
     this.economy = new Economy(this.level.startGold);
     this.waves = new WaveManager(this.level.waves as WaveDef[], (typeId, hpScale, pathIdx) => {
       const m = new Monster(this.paths[pathIdx] ?? this.paths[0], monsterById(typeId), hpScale);
@@ -164,7 +166,7 @@ export class BattleScene implements Scene {
     this.towers = [];
     this.projectiles = [];
     this.healCd.clear();
-    this.carrotHp = this.level.carrotHp;
+    this.pumpkinHp = this.level.pumpkinHp;
     this.ended = false;
     this.selectedCell = null;
     this.selectedTower = null;
@@ -194,13 +196,13 @@ export class BattleScene implements Scene {
         this.refreshHud();
       }),
       bus.on<{ damage: number }>('monster:escaped', (p) => {
-        this.carrotHp -= p.damage;
+        this.pumpkinHp -= p.damage;
         this.shake = 0.55;
-        this.fx.floatText(this.carrotPos.x, this.carrotPos.y - 78, `-${p.damage}`, '#ff6b57');
-        this.fx.poof(this.carrotPos.x, this.carrotPos.y - 20, 16, '#a5d6a7');
+        this.fx.floatText(this.pumpkinPos.x, this.pumpkinPos.y - 78, `-${p.damage}`, '#ff6b57');
+        this.fx.poof(this.pumpkinPos.x, this.pumpkinPos.y - 20, 16, '#ffb347');
         audio.play('bite');
         this.refreshHud();
-        if (this.carrotHp <= 0 && !this.ended) this.showResult(false);
+        if (this.pumpkinHp <= 0 && !this.ended) this.showResult(false);
       }),
       // 切后台自动弹出暂停菜单（防误操作与无谓掉血）
       bus.on('app:paused', (): void => {
@@ -225,13 +227,13 @@ export class BattleScene implements Scene {
 
     const chipLevel = document.createElement('span');
     chipLevel.className = 'chip';
-    chipLevel.textContent = `${this.level.id}️⃣ ${this.level.name}`;
+    chipLevel.textContent = `${this.level.id}️⃣ ${tr(this.level.name)}`;
 
     this.chipGold = document.createElement('span');
     this.chipGold.className = 'chip';
     this.chipTip = document.createElement('span');
     this.chipTip.className = 'chip chip-tip';
-    this.chipTip.textContent = '👆 点击草地空位建塔！';
+    this.chipTip.textContent = tr('hud.tip');
     this.chipWave = document.createElement('span');
     this.chipWave.className = 'chip';
     this.chipWave.addEventListener('click', () => this.tryCallNext());
@@ -298,8 +300,8 @@ export class BattleScene implements Scene {
 
     for (const kind of this.level.unlockedTowers) {
       const type = TOWER_TYPES[kind];
-      const btn = this.dockButton(`${TOWER_ICON[kind]} ${type.name} ${type.cost}`, 'btn-tower');
-      btn.title = `${type.desc}｜射程 ${type.range}`;
+      const btn = this.dockButton(`${TOWER_ICON[kind]} ${tr(type.name)} ${type.cost}`, 'btn-tower');
+      btn.title = tr('build.tooltip', { desc: tr(type.desc), range: type.range });
       btn.addEventListener('click', () => {
         this.buildKind = kind;
         audio.play('click');
@@ -310,7 +312,7 @@ export class BattleScene implements Scene {
 
     this.buildConfirmBtn = this.dockButton('', '');
     this.buildConfirmBtn.addEventListener('click', () => this.buildAtSelected());
-    const cancelBtn = this.dockButton('取消', 'btn-cancel');
+    const cancelBtn = this.dockButton(tr('build.cancel'), 'btn-cancel');
     cancelBtn.addEventListener('click', () => this.clearSelection());
     this.dockBar.append(...this.buildOptionBtns.values(), this.buildConfirmBtn, cancelBtn);
     this.dockBar.hidden = false;
@@ -325,13 +327,14 @@ export class BattleScene implements Scene {
     }
     if (!this.buildConfirmBtn) return;
     const type = TOWER_TYPES[this.buildKind];
-    this.buildConfirmBtn.textContent = `✔ 建造（${type.cost}）`;
+    this.buildConfirmBtn.textContent = tr('build.confirm', { cost: type.cost });
     this.buildConfirmBtn.disabled = !this.economy.canAfford(type.cost);
   }
 
   /** 塔面板标题：名字、等级，选了分支则带上分支名 */
   private towerTitle(t: Tower): string {
-    return `${t.type.name} Lv${t.level}${t.branch ? ` · ${t.branch.name}` : ''}`;
+    const title = tr('tower.title', { name: tr(t.type.name), lv: t.level });
+    return t.branch ? `${title} · ${tr(t.branch.name)}` : title;
   }
 
   /** 升级：Lv1→2 直接升；Lv2→3 必须传入分支 */
@@ -389,17 +392,17 @@ export class BattleScene implements Scene {
       branchBtns.forEach((b, i) => {
         const def = BRANCHES[t.type.id][i];
         b.style.display = branchStage ? '' : 'none';
-        b.innerHTML = `${def.name}（${cost}）<br><small>${def.desc}</small>`;
+        b.innerHTML = tr('tower.branch', { name: tr(def.name), cost, desc: tr(def.desc) });
         b.disabled = !this.economy.canAfford(cost);
       });
       if (t.level >= 3) {
-        upBtn.textContent = '已满级 ⭐';
+        upBtn.textContent = tr('tower.maxed');
         upBtn.disabled = true;
       } else if (!branchStage) {
-        upBtn.textContent = `⬆️ 升级（${cost}）`;
+        upBtn.textContent = tr('tower.upgrade', { cost });
         upBtn.disabled = !this.economy.canAfford(cost);
       }
-      sellBtn.textContent = `💰 出售 +${Math.floor(t.invested * 0.7)}`;
+      sellBtn.textContent = tr('tower.sell', { n: Math.floor(t.invested * 0.7) });
     };
     this.towerPanelRefresh = refresh;
     refresh();
@@ -414,7 +417,7 @@ export class BattleScene implements Scene {
     this.waves.update(dt);
     if (this.waves.currentWave > this.lastWaveSeen) {
       this.lastWaveSeen = this.waves.currentWave;
-      this.bannerText = `第 ${this.waves.currentWave} / ${this.waves.total} 波`;
+      this.bannerText = tr('banner.wave', { n: this.waves.currentWave, total: this.waves.total });
       this.bannerT = 0;
       audio.play('wave');
     }
@@ -544,14 +547,14 @@ export class BattleScene implements Scene {
       ctx.restore();
     }
 
-    // 复用数组按脚下 y 统一排序，塔、道具、怪物、萝卜互相遮挡正确
+    // 复用数组按脚下 y 统一排序，塔、道具、怪物、南瓜互相遮挡正确
     const list = this.depthList;
     list.length = 0;
     for (const o of this.obstacles) list.push(o);
     for (const t of this.towers) list.push(t);
     for (const m of this.monsters) list.push(m);
     for (const p of ground.props) list.push(p);
-    list.push(this.carrotView);
+    list.push(this.pumpkinView);
     list.sort((a, b) => a.depthY - b.depthY);
     for (const e of list) e.render(ctx);
 
@@ -589,25 +592,25 @@ export class BattleScene implements Scene {
     ctx.restore();
   }
 
-  /** 萝卜：受击时整体抖动，血量阶段决定表情 */
-  private renderCarrot(ctx: CanvasRenderingContext2D): void {
-    if (this.carrotHp <= 0) return;
+  /** 南瓜：受击时整体抖动，血量阶段决定表情 */
+  private renderPumpkin(ctx: CanvasRenderingContext2D): void {
+    if (this.pumpkinHp <= 0) return;
     ctx.save();
     if (this.shake > 0) {
       ctx.translate(Math.sin(this.time * 72) * 7 * this.shake, Math.cos(this.time * 61) * 5 * this.shake);
     }
-    enterUpright(ctx, this.carrotPos.x, this.carrotPos.y);
-    const mood: CarrotMood = this.carrotHp > 6 ? 'happy' : this.carrotHp > 3 ? 'worried' : 'hurt';
-    drawCarrot(ctx, this.carrotPos.x, this.carrotPos.y, 108, mood);
-    this.drawCarrotHpBar(ctx);
+    enterUpright(ctx, this.pumpkinPos.x, this.pumpkinPos.y);
+    const mood: PumpkinMood = this.pumpkinHp > 6 ? 'happy' : this.pumpkinHp > 3 ? 'worried' : 'hurt';
+    drawPumpkin(ctx, this.pumpkinPos.x, this.pumpkinPos.y, 108, mood);
+    this.drawPumpkinHpBar(ctx);
     ctx.restore();
   }
 
-  private drawCarrotHpBar(ctx: CanvasRenderingContext2D): void {
-    const pct = Math.max(0, this.carrotHp / this.level.carrotHp);
+  private drawPumpkinHpBar(ctx: CanvasRenderingContext2D): void {
+    const pct = Math.max(0, this.pumpkinHp / this.level.pumpkinHp);
     const w = 84;
-    const x = this.carrotPos.x - w / 2;
-    const y = this.carrotPos.y - 96;
+    const x = this.pumpkinPos.x - w / 2;
+    const y = this.pumpkinPos.y - 96;
     ctx.fillStyle = 'rgba(20,14,6,0.55)';
     roundRectPath(ctx, x - 2, y - 2, w + 4, 13, 6.5);
     ctx.fill();
@@ -643,7 +646,12 @@ export class BattleScene implements Scene {
     }
     if (obstacleHere) {
       const info = OBSTACLES[obstacleHere.kind];
-      this.fx.floatText(obstacleHere.pos.x, obstacleHere.pos.y - 52, `${info.name} · 打碎得 ${info.reward}🪙`, '#ffe9a8');
+      this.fx.floatText(
+        obstacleHere.pos.x,
+        obstacleHere.pos.y - 52,
+        tr('obstacle.smash', { name: tr(info.name), reward: info.reward }),
+        '#ffe9a8',
+      );
       this.clearSelection();
       return;
     }
@@ -685,7 +693,7 @@ export class BattleScene implements Scene {
     if (remaining == null) return;
     const bonus = Math.ceil(Math.min(remaining, 6) * 10);
     this.economy.add(bonus);
-    this.fx.floatText(DESIGN_W / 2, 110, `提前召唤 +${bonus}`, '#ffd54f', true);
+    this.fx.floatText(DESIGN_W / 2, 110, tr('call.early', { n: bonus }), '#ffd54f', true);
     audio.play('coin');
     this.refreshHud();
   }
@@ -698,7 +706,7 @@ export class BattleScene implements Scene {
       if (!m.dead) m.applySlow(SKILL_SLOW_RATIO, SKILL_SLOW_DUR);
     }
     this.skillFlash = 1;
-    this.fx.floatText(DESIGN_W / 2, 200, '❄ 冰霜大风！', '#bfe9ff', true);
+    this.fx.floatText(DESIGN_W / 2, 200, tr('skill.frost'), '#bfe9ff', true);
     audio.play('upgrade');
     this.refreshHud();
   }
@@ -715,13 +723,13 @@ export class BattleScene implements Scene {
     const panel = document.createElement('div');
     panel.className = 'panel';
     const title = document.createElement('h2');
-    title.textContent = '暂停中 ⏸';
+    title.textContent = tr('pause.title');
     const row = document.createElement('div');
     row.className = 'row';
 
     const resume = document.createElement('button');
     resume.className = 'btn btn-green';
-    resume.textContent = '▶ 继续';
+    resume.textContent = tr('pause.resume');
     resume.addEventListener('click', () => {
       audio.play('click');
       settings.paused = false;
@@ -730,11 +738,11 @@ export class BattleScene implements Scene {
     });
     const restart = document.createElement('button');
     restart.className = 'btn btn-cancel';
-    restart.textContent = '再来一局';
+    restart.textContent = tr('pause.restart');
     restart.addEventListener('click', () => this.scenes.reloadCurrent());
     const menu = document.createElement('button');
     menu.className = 'btn btn-cancel';
-    menu.textContent = '返回菜单';
+    menu.textContent = tr('pause.menu');
     menu.addEventListener('click', () => this.scenes.switchTo('menu'));
 
     row.append(resume, restart, menu);
@@ -756,24 +764,22 @@ export class BattleScene implements Scene {
   private refreshSkillBtn(): void {
     if (!this.skillBtn) return;
     const ready = this.energy >= SKILL_MAX;
-    this.skillBtn.textContent = ready ? '✨ 大招就绪！' : `✨ 大招 ${Math.floor(this.energy)}%`;
+    this.skillBtn.textContent = ready ? tr('hud.skillReady') : tr('hud.skill', { p: Math.floor(this.energy) });
     this.skillBtn.disabled = !ready || this.ended;
   }
 
   private refreshWaveChip(): void {
     const w = this.waves;
     if (w.finished) {
-      this.chipWave.textContent = '🎉 全部波次来袭完毕';
+      this.chipWave.textContent = tr('hud.allSpawned');
       this.chipWave.classList.remove('call-ready');
     } else if (w.spawning) {
-      this.chipWave.textContent = `⚔️ 第 ${w.currentWave} / ${w.total} 波`;
+      this.chipWave.textContent = tr('hud.waveProgress', { n: w.currentWave, total: w.total });
       this.chipWave.classList.remove('call-ready');
     } else {
       const s = Math.max(1, Math.ceil(w.countdown));
       this.chipWave.textContent =
-        w.currentWave === 0
-          ? `⏳ ${s}s 后第一波 · 点击提前！`
-          : `⏳ 下一波 ${s}s · 点击提前！`;
+        w.currentWave === 0 ? tr('hud.firstWave', { s }) : tr('hud.nextWave', { s });
       this.chipWave.classList.add('call-ready');
     }
   }
@@ -783,7 +789,7 @@ export class BattleScene implements Scene {
     this.clearSelection();
     audio.play(win ? 'win' : 'lose');
 
-    const stars = this.carrotHp >= 8 ? 3 : this.carrotHp >= 4 ? 2 : 1;
+    const stars = this.pumpkinHp >= 8 ? 3 : this.pumpkinHp >= 4 ? 2 : 1;
     if (win) save.recordStars(this.level.id, stars);
 
     const next = ALL_LEVELS.find((l) => l.id === this.level.id + 1);
@@ -793,7 +799,7 @@ export class BattleScene implements Scene {
     panel.className = 'panel';
 
     const title = document.createElement('h2');
-    title.textContent = win ? '胜利！🎉' : '萝卜被吃掉了… 😿';
+    title.textContent = win ? tr('result.win') : tr('result.lose');
     if (win) {
       const starRow = document.createElement('div');
       starRow.className = 'stars';
@@ -803,23 +809,23 @@ export class BattleScene implements Scene {
     const sub = document.createElement('p');
     sub.className = 'sub';
     sub.textContent = win
-      ? `剩余萝卜血量 ${this.carrotHp} / ${this.level.carrotHp}`
-      : `坚守到了第 ${Math.max(1, this.waves.currentWave)} 波`;
+      ? tr('result.hp', { hp: this.pumpkinHp, max: this.level.pumpkinHp })
+      : tr('result.wave', { n: Math.max(1, this.waves.currentWave) });
     const row = document.createElement('div');
     row.className = 'row';
     const again = document.createElement('button');
     again.className = 'btn btn-green';
-    again.textContent = '再来一局';
+    again.textContent = tr('result.again');
     again.addEventListener('click', () => this.scenes.reloadCurrent());
     const menu = document.createElement('button');
     menu.className = 'btn btn-cancel';
-    menu.textContent = '返回菜单';
+    menu.textContent = tr('result.menu');
     menu.addEventListener('click', () => this.scenes.switchTo('menu'));
     row.append(again, menu);
 
     panel.append(title, sub, row);
     if (win && next && save.isUnlocked(next.id)) {
-      const nextBtn = this.dockButton(`下一关 ▶ ${next.name}`, '');
+      const nextBtn = this.dockButton(tr('result.next', { name: tr(next.name) }), '');
       nextBtn.addEventListener('click', () => {
         selection.current = next;
         this.scenes.reloadCurrent();
@@ -833,14 +839,15 @@ export class BattleScene implements Scene {
     this.scenes.uiRoot.appendChild(overlay);
   }
 
-  // 静态地图缓存（按关卡区分，重开局复用）
-  private groundCaches = new Map<number, GroundBuild>();
+  // 静态地图缓存（按语言 + 关卡区分：地图上的木牌文字随语言变化，重开局复用）
+  private groundCaches = new Map<string, GroundBuild>();
   private groundData(): GroundBuild {
-    let data = this.groundCaches.get(this.level.id);
+    const key = `${getLang()}:${this.level.id}`;
+    let data = this.groundCaches.get(key);
     if (!data) {
-      const built = buildGround(this.paths.map((p) => p.points), this.carrotPos, 20260826 + this.level.id, WORLD_PAD);
+      const built = buildGround(this.paths.map((p) => p.points), this.pumpkinPos, 20260826 + this.level.id, WORLD_PAD);
       data = { canvas: tiltGround(built.canvas, WORLD_PAD), props: built.props };
-      this.groundCaches.set(this.level.id, data);
+      this.groundCaches.set(key, data);
     }
     return data;
   }

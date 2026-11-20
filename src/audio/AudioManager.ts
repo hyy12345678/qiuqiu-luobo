@@ -130,11 +130,11 @@ class AudioManager {
   private tickBgm(): void {
     const ctx = this.ctx;
     if (!ctx) return;
-    // C-G-Am-F 进行，116bpm 八分音符
-    const eighth = 60 / 116 / 2;
+    // Am-F-G-Em 进行，88bpm 八分音符，A 小调五声音阶（夜晚氛围）
+    const eighth = 60 / 88 / 2;
     const barSteps = 8;
-    const roots = [130.8, 98, 110, 87.3]; // C3 G2 A2 F2
-    const penta = [523.3, 587.3, 659.3, 784, 880];
+    const roots = [110, 87.3, 98, 82.4]; // A2 F2 G2 E2
+    const penta = [440, 523.3, 587.3, 659.3, 784]; // A C D E G
     const bar = Math.floor(this.step / barSteps) % 4;
 
     if (!save.muted) {

@@ -1,11 +1,11 @@
 import type { LevelDef } from './types';
 
-/** 第 3 关：财宝园——遍地宝箱，靠打道具滚起经济 */
+/** 第 3 关：财宝园——遍地糖果桶，靠打道具滚起经济 */
 export const LEVEL_3: LevelDef = {
   id: 3,
-  name: '财宝园',
+  name: 'level.3',
   startGold: 220,
-  carrotHp: 10,
+  pumpkinHp: 10,
   unlockedTowers: ['bottle', 'frost', 'multishot', 'sunflower'],
   paths: [
     [

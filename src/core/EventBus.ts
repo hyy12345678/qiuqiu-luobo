@@ -1,6 +1,6 @@
 type Handler<T> = (payload: T) => void;
 
-/** 轻量事件总线：战斗系统内部解耦用（如「怪物死亡」「萝卜受伤」） */
+/** 轻量事件总线：战斗系统内部解耦用（如「怪物死亡」「南瓜受伤」） */
 class EventBus {
   private map = new Map<string, Set<Handler<never>>>();
 

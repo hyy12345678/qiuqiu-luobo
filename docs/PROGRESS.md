@@ -1,185 +1,187 @@
-# 球球萝卜 · 进度跟踪
+English | [中文](PROGRESS.zh-CN.md)
 
-> 最近核对：2026-11-04。分支 `main`，v1.1 已提交（`9a97071`、`220ab54`），v1.2 已提交（`b2d9220`）。
-> 每次完成一项任务，或每次发布前后，更新本文件的「状态」「验证记录」「变更日志」三节。
+# Qiuqiu Pumpkin · Progress Tracker
+
+> Last checked: 2026-11-04. Branch `main`. v1.1 committed (`9a97071`, `220ab54`), v1.2 committed (`b2d9220`).
+> When you finish a task, or before and after each release, update the "Status", "Verification log" and "Changelog" sections of this file.
 
 ---
 
-## 一、接手指引
+## 1. Handover guide
 
-### 1. 先读什么
+### 1. What to read first
 
-1. [`README.md`](../README.md)：玩法、运行方式、目录速览。
-2. 本文件：当前进度、已知问题。
-3. [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)：代码结构与运行时流程。
-4. [`docs/DEV_PLAN.md`](./DEV_PLAN.md)：待办清单与后续计划。
-5. [`PLAN.md`](../PLAN.md)：v1.0 的原始规划。它是历史快照，与代码不一致的地方见第五节。
+1. [`README.md`](../README.md): gameplay, how to run, directory overview.
+2. This file: current progress and known issues.
+3. [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md): code structure and runtime flow.
+4. [`docs/DEV_PLAN.md`](./DEV_PLAN.md): task list and next plans.
+5. [`PLAN.md`](../PLAN.md): the original v1.0 plan. It is a historical snapshot. Places where it differs from the code are listed in section 5.
 
-### 2. 本地验证（约 2 分钟）
+### 2. Local verification (about 2 minutes)
 
 ```bash
 npm install
-npm run typecheck        # 类型检查
-npm run test:smoke       # 逻辑冒烟，预期 56 项 ✅、0 项 ❌
-npm run build            # 产出 dist/index.html
-npm run test:click       # 无头 Chrome 真实点击回归（需本机 Chrome，macOS 路径写死，见 T-10）。先 build，它读的是 dist/
-npm run dev              # 本地开发，http://localhost:5173（加 ?debug 可显示 FPS）
+npm run typecheck        # type check
+npm run test:smoke       # logic smoke test, expect 56 ✅ and 0 ❌
+npm run build            # produces dist/index.html
+npm run test:click       # headless Chrome real-click regression (needs Chrome on this machine; the macOS path is hard-coded, see T-10). Build first, because it reads dist/
+npm run dev              # local development, http://localhost:5173 (add ?debug to show FPS)
 ```
 
-### 3. 接手时最需要知道的三件事
+### 3. The three things you most need to know when taking over
 
-1. **六种塔都能建造，按关卡解锁**（v1.1 完成）。第 2 关起可选的塔数量增加，见第五节 5.2 的假设说明。
-2. **文档原本说的是每关 10~15 波、Boss 在第 15 波，实际是 4~8 波。** 按 D-2 决定暂不扩充，数据以代码为准。
-3. **真机 FPS 与微信内体验没有验证记录。** PLAN M4 标记为完成，但验收标准中这两项仍没有证据（T-07）。
-
----
-
-## 二、里程碑状态
-
-状态以 PLAN.md 的里程碑定义为准。「代码核对」列是 2026-11-04 核对的结果。
-
-| 里程碑 | PLAN 标记 | 代码核对结果 | 备注 |
-|--------|-----------|--------------|------|
-| M0 脚手架 | ✅ | 通过 | 16:9 letterbox、固定步长循环、场景切换、DPR 封顶 2 |
-| M1 可玩原型 | ✅ | 通过 | 完整战斗循环：建塔、波次、金币、胜负判定 |
-| M2 玩法完整 | ✅ | **通过**（v1.2） | 六塔可建造（v1.1）；爆爆虫死亡爆炸、Boss 受击硬直（v1.2）；道具、星级、提前召唤、倍速、暂停已实现 |
-| M3 内容体验 | ✅ | **通过**（按 D-2 调整） | 五关、选关解锁、音效与 BGM、静音、存档、逐关塔种解锁（v1.1）。波数按 D-2 保持 4~8 波，PLAN 已同步为实际数字（v1.2） |
-| M4 发布打磨 | ✅ | **部分通过** | 安全区、切后台暂停、竖屏提示、防误触均已实现。“主流真机 60fps”“微信内可玩”没有证据（T-07）；“渲染零分配”未达成（T-09） |
-
-**版本进度**：v1.1 已完成。v1.2 中 T-05、T-06、T-08 已完成；T-07 需要真机，仍未完成。v1.3 未开始。
+1. **All six tower types can be built, unlocked by level** (completed in v1.1). From level 2 onward, more towers are available to choose. See the assumption note in section 5.2.
+2. **The docs originally said 10~15 waves per level, with the Boss in wave 15. The actual count is 4~8 waves.** Per decision D-2, we are not expanding it for now. The data follows the code.
+3. **There is no verification record for real-device FPS or the in-WeChat experience.** PLAN M4 is marked as done, but these two acceptance criteria still have no evidence (T-07).
 
 ---
 
-## 三、验证记录
+## 2. Milestone status
 
-| 日期 | 项目 | 结果 | 说明 |
-|------|------|------|------|
-| 2026-11-04 | `npm run typecheck` | ✅ 通过 | v1.0 基线与 v1.1 改动后各跑一次 |
-| 2026-11-04 | `npm run build` | ✅ 通过 | v1.1 产物 `dist/index.html` 71.61 kB，gzip 22.76 kB |
-| 2026-11-04 | `npm run test:smoke` | ✅ 56 通过 / 0 失败 | v1.0 为 46 项，v1.1 新增“解锁塔种合法 / 无重复 / 包含瓶子塔”和“逐关只增不减”，每关各两项，共 10 项 |
-| 2026-11-04 | `npm run test:click`（本机 Chrome，headless） | ✅ ALL PASS | 9 项：场景一（新存档，第 1 关只显示瓶子塔，建塔扣 100，点路面不弹面板）；场景二（通关第 1 关后第 2 关解锁，显示冰冻星、未解锁的塔不可见，选冰冻星建造扣 140）。无 JS 运行时错误 |
-| 2026-11-04 | 建造面板截图（第 5 关，六塔全解锁） | ✅ 布局正确 | 底部栏宽 111~1169 px，在 1280 px 内；按钮不换行；选中火箭塔时金色描边可见，射程虚线圆正确显示 |
-| 2026-11-04 | 第 4 关实际建造（headless Chrome） | ✅ 通过 | 风扇塔扣 220（260 → 40）；火箭塔扣 260（260 → 0）。确认按钮文字与实际扣费一致 |
-| 2026-11-04 | `?debug` 显示 FPS（截图对比） | ✅ 通过 | 带 `?debug` 的页面左上角显示 “FPS 60”；不带参数则不显示 |
-| 2026-11-04 | 爆爆虫爆炸与 Boss 硬直的逻辑验证（`/tmp` 脚本，Node） | ✅ 9 项全部通过 | 硬直：Boss 受击后位移为未受击时的 30%（1.26 对 4.20），普通怪不变，致死一击不进入硬直。爆炸：半径内普通怪扣 50、半径外不受影响、被炸的爆爆虫连锁爆炸击杀相邻怪 |
-| 2026-11-04 | 第 1 关、第 5 关整局运行（headless Chrome，持续提前召唤） | ✅ 两局无 JS 错误 | 两局均打到失败结算（未建塔，属预期）。第 5 关未打到 Boss 出场，Boss 硬直仅由上面的逻辑脚本覆盖 |
-| 2026-11-04 | `npm run test:smoke` / `typecheck` / `build` / `test:click` | ✅ 通过 | 冒烟 56 项；产物 72.42 kB，gzip 23.01 kB；点击回归 9 项 |
-| 2026-11-04 | T-09 分配量基准（第 4 关，4 座塔，60 s，CDP 采样 JSHeapUsedSize） | ✅ 改动前 109.7 MB / 160 次回落；改动后 73.0 MB / 118 次回落（分配量 -33%，回落次数 -26%） | 改动：障碍物与怪物列表原地压缩、索敌缓冲区复用、路径采样不分配、特效数组原地压缩、身体渐变缓存。改动前后截图无可见差异 |
-| 2026-11-04 | T-09 分配热点采样（CDP HeapProfiler，未压缩构建） | ℹ️ 剩余 ~50% 在 `drawMonster` | 剩余分配多为 Canvas 调用时传入非整数坐标产生的装箱。进一步减少需要预渲染精灵，本轮未做 |
-| 2026-11-04 | `npm run test:click`（改动后） | ✅ ALL PASS | 9 项全部通过，无 JS 运行时错误 |
-| 2026-11-06 | 伪 3D 第一版（`?flat` 对比） | ✅ 通过 | `typecheck`、`build`、`test:smoke`、`test:click` 全部通过。透视版与平面版都能建塔、点塔身选中。梯形外无残留纯色背景像素（统计为 0） |
-| 2026-11-06 | 塔的脸与升级外观（测试页，六塔 × Lv1–3） | ✅ 通过 | 六座塔三个等级外观均正确，Lv3 有光晕和星光 |
-| 2026-11-06 | 待机动作（建塔后 3 秒内像素采样） | ✅ 通过 | 相邻帧变化与小跳时长吻合，开头建造烟雾与静止帧未误判 |
-| 2026-11-06 | 怪物死亡残影与眨眼（测试页） | ✅ 通过 | 残影 0 / 0.15 / 0.3 秒三个状态正确；闭眼效果正确 |
-| 2026-11-06 | 怪物外观（六种怪的颜色与头饰，测试页） | ✅ 通过 | 飞毛腿黄色兔耳，爆爆虫红色火绳，其余保持原样 |
-| 2026-11-10 | 大招与分支效果（驱动真实塔与子弹代码的脚本） | ✅ 通过 | 瓶子 B 溅射、瓶子 A 冷却缩短、多重箭 A 五连箭（默认 3 支）、火箭 A 范围、冰冻 A 减速比例 0.25 全部正确 |
-| 2026-11-10 | 冰冻减速修复 | ✅ 修复 | `Monster.applySlow` 原来用 `Math.max`，减速比例永远为 1，冰冻星和大招都没有减速效果。改为保留更强的减速 |
-| 2026-11-10 | 深度遮挡（测试页实例化真实 `BattleScene`，怪物分别放在塔前、塔后） | ✅ 通过 | 怪在塔后时塔身挡住怪物，怪在塔前时怪物盖住塔身。整局随机走位中的遮挡没有专门截图 |
-| — | 真机 FPS（iOS / Android） | ⏳ 未验证 | 见 T-07，DEV_PLAN 附录有清单 |
-| — | 微信内置浏览器 | ⏳ 未验证 | 见 T-07 |
+Status follows the milestone definitions in PLAN.md. The "Code check" column shows the result of the check on 2026-11-04.
 
-冒烟输出中的时间线（仅供参考，不作为验收标准）：每关波次放完的时间分别约为 51 s、57 s、80 s、92 s、93 s。
+| Milestone | PLAN mark | Code check result | Notes |
+|-----------|-----------|-------------------|-------|
+| M0 Scaffold | ✅ | Pass | 16:9 letterbox, fixed-step loop, scene switching, DPR capped at 2 |
+| M1 Playable prototype | ✅ | Pass | Full battle loop: building towers, waves, gold, win/lose judgment |
+| M2 Complete gameplay | ✅ | **Pass** (v1.2) | Six towers buildable (v1.1); Pumpkin Bomb death explosion and Boss hit stagger (v1.2); items, stars, early wave call, speed-up, and pause implemented |
+| M3 Content and experience | ✅ | **Pass** (adjusted per D-2) | Five levels, level-select unlocks, sound effects and BGM, mute, save, per-level tower unlocks (v1.1). Wave count kept at 4~8 per D-2; PLAN synced to the actual numbers (v1.2) |
+| M4 Release polish | ✅ | **Partial pass** | Safe area, pause on background, portrait hint, and accidental-tap prevention are implemented. "60 fps on mainstream real devices" and "playable in WeChat" have no evidence (T-07); "zero allocation in rendering" is not achieved (T-09) |
+
+**Version progress**: v1.1 is complete. In v1.2, T-05, T-06 and T-08 are complete; T-07 needs a real device and is still open. v1.3 has not started.
 
 ---
 
-## 四、已知问题
+## 3. Verification log
 
-按严重程度排列。编号对应 [DEV_PLAN.md](./DEV_PLAN.md) 中的任务。
+| Date | Item | Result | Notes |
+|------|------|--------|-------|
+| 2026-11-04 | `npm run typecheck` | ✅ Pass | Run once on the v1.0 baseline and once after the v1.1 changes |
+| 2026-11-04 | `npm run build` | ✅ Pass | v1.1 output `dist/index.html` 71.61 kB, gzip 22.76 kB |
+| 2026-11-04 | `npm run test:smoke` | ✅ 56 passed / 0 failed | v1.0 had 46 items. v1.1 added "unlocked tower type is valid / no duplicates / includes the bottle tower" and "unlocks only grow level by level", two per level, 10 items in total |
+| 2026-11-04 | `npm run test:click` (local Chrome, headless) | ✅ ALL PASS | 9 items. Scenario 1: new save, level 1 shows only the bottle tower, building costs 100, tapping the road does not open a panel. Scenario 2: after clearing level 1, level 2 unlocks, shows the ice star, locked towers are hidden, choosing the ice star and building costs 140. No JS runtime errors |
+| 2026-11-04 | Build panel screenshot (level 5, all six towers unlocked) | ✅ Layout correct | Bottom bar width 111~1169 px, within 1280 px; buttons do not wrap; when the rocket tower is selected, the gold outline is visible and the dashed range circle displays correctly |
+| 2026-11-04 | Actual building on level 4 (headless Chrome) | ✅ Pass | Fan tower costs 220 (260 → 40); rocket tower costs 260 (260 → 0). Confirm button text matches the actual charge |
+| 2026-11-04 | `?debug` FPS display (screenshot comparison) | ✅ Pass | With `?debug`, the top-left corner shows "FPS 60"; without the parameter, nothing is shown |
+| 2026-11-04 | Bomb-bug explosion and Boss stagger logic check (`/tmp` script, Node) | ✅ All 9 items pass | Stagger: after being hit, the Boss moves at 30% of its unhit displacement (1.26 vs 4.20). Normal monsters unchanged. A killing blow does not trigger stagger. Explosion: normal monsters within the radius lose 50, those outside are unaffected, and a bomb bug caught in the blast chain-explodes and kills adjacent monsters |
+| 2026-11-04 | Full runs of level 1 and level 5 (headless Chrome, continuous early wave calls) | ✅ Two runs with no JS errors | Both runs ended in a defeat screen (no towers built, as expected). Level 5 did not reach the Boss appearance, so Boss stagger is covered only by the logic script above |
+| 2026-11-04 | `npm run test:smoke` / `typecheck` / `build` / `test:click` | ✅ Pass | Smoke 56 items; output 72.42 kB, gzip 23.01 kB; click regression 9 items |
+| 2026-11-04 | T-09 allocation benchmark (level 4, 4 towers, 60 s, CDP sampling of JSHeapUsedSize) | ✅ Before change 109.7 MB / 160 drops; after change 73.0 MB / 118 drops (allocation -33%, drops -26%) | Changes: in-place compaction of obstacle and monster lists, reuse of target-search buffers, path sampling without allocation, in-place compaction of effects arrays, cached body gradients. No visible difference in screenshots before and after |
+| 2026-11-04 | T-09 allocation hotspot sampling (CDP HeapProfiler, unminified build) | ℹ️ About 50% remains in `drawMonster` | Most remaining allocations come from boxing caused by passing non-integer coordinates to Canvas calls. Further reduction needs pre-rendered sprites, which were not done in this round |
+| 2026-11-04 | `npm run test:click` (after changes) | ✅ ALL PASS | All 9 items pass, no JS runtime errors |
+| 2026-11-06 | Pseudo-3D first version (`?flat` comparison) | ✅ Pass | `typecheck`, `build`, `test:smoke` and `test:click` all pass. Both the perspective version and the flat version can build towers and select by tapping the tower body. No leftover solid-background pixels outside the trapezoid (count is 0) |
+| 2026-11-06 | Tower faces and upgrade appearance (test page, six towers × Lv1–3) | ✅ Pass | Appearance is correct for all three levels of all six towers; Lv3 has a glow and sparkles |
+| 2026-11-06 | Idle animation (pixel sampling for 3 s after building a tower) | ✅ Pass | Frame-to-frame change matches the duration of the small hop. The build smoke at the start and the still frames were not misjudged |
+| 2026-11-06 | Monster death afterimage and blinking (test page) | ✅ Pass | Afterimage states at 0 / 0.15 / 0.3 s are correct; closed-eye effect is correct |
+| 2026-11-06 | Monster appearance (colors and headwear of the six monsters, test page) | ✅ Pass | Hopper has yellow rabbit ears; bomb bug has a red fuse; the rest are unchanged |
+| 2026-11-10 | Ultimate and branch effects (script driving the real tower and bullet code) | ✅ Pass | Bottle B splash, bottle A shorter cooldown, multi-arrow A five-arrow volley (3 arrows by default), rocket A area, ice A slow ratio 0.25 are all correct |
+| 2026-11-10 | Ice slow fix | ✅ Fixed | `Monster.applySlow` used `Math.max`, so the slow ratio was always 1. The ice star and ultimates had no slow effect. Changed to keep the stronger slow |
+| 2026-11-10 | Depth occlusion (test page instantiates the real `BattleScene`, monsters placed in front of and behind towers) | ✅ Pass | When a monster is behind a tower, the tower body blocks it. When a monster is in front, it covers the tower body. Occlusion during a full random-movement run has no dedicated screenshot |
+| — | Real-device FPS (iOS / Android) | ⏳ Not verified | See T-07; the DEV_PLAN appendix has a checklist |
+| — | WeChat built-in browser | ⏳ Not verified | See T-07 |
 
-| 级别 | 问题 | 位置 | 对应任务 |
-|------|------|------|----------|
-| 中 | 设备 FPS 与微信内体验没有记录，PLAN M4 的验收仍缺证据。 | — | T-07 |
-| 低 | Boss 硬直与爆爆虫爆炸的画面效果没有在整局中人工看过。逻辑已由 `/tmp` 脚本验证，运行时只确认了两关无报错。 | `battle/entities/Monster.ts`、`scenes/BattleScene.ts` | T-07（真机时一并看） |
-| 低 | 每帧分配较多：子弹、飘字每次 `new`；`render` 每帧复制并排序障碍数组；`allTargets` 每次调用新建数组。尚未用 profiler 测量，影响程度未知。 | `BattleScene.ts`、`Bullet.ts`、`Tower.ts` | T-09 |
-| 低 | `click-test.cjs` 写死了 macOS Chrome 路径，只能在本机跑。 | `scripts/click-test.cjs` | T-10 |
-| 低 | 战斗规则没有单元测试，只有关卡级冒烟。 | `scripts/` | T-11 |
-| 低 | 多重箭的解锁关（第 2 关）是本文档的假设，PLAN 没有写。 | `data/levels/level02.ts` | 请确认，见 5.2 |
-| 低 | 索敌策略固定为“走得最远者优先”。PLAN 4.1 写的是可配置（strongest、closest），代码中没有配置入口。 | `battle/entities/Tower.ts` | 未排期 |
-| 低 | 没有 lint 或格式化配置（ESLint、Prettier）。 | 仓库根目录 | 未排期 |
-
-v1.1 已修复：只能建瓶子塔（T-01）、射程圈固定为瓶子塔（T-01）、正式版显示 FPS 标签（T-02）、README 冒烟命令写到 `/tmp`（T-03）。
-v1.2 已修复：爆爆虫死亡不爆炸（T-05）、Boss 没有受击硬直（T-06）。
-
----
-
-## 五、文档与代码偏差
-
-以代码为准。PLAN.md 保留为历史快照，偏差在 PLAN 4.2 处有注释说明。
-
-### 5.1 目录结构
-
-| PLAN 第 4.2 节 | 实际 |
-|----------------|------|
-| `src/input/` | 实际为 `src/core/Input.ts` |
-| `src/ui/`（Hud.ts、BuildMenu.ts、Panels.ts） | 不存在。UI 直接写在 `BattleScene.ts` 中（`buildHud`、`openBuildPanel`、`openTowerPanel`、`openPauseMenu`、`showResult`） |
-| `src/battle/ObjectPool.ts` | 不存在（见 T-09） |
-| `src/battle/entities/Carrot.ts` | 不存在。萝卜由 `drawCarrot`（sprites.ts）绘制，血量在 `BattleScene` 中 |
-| `src/render/sprites/` 子目录 | 实际为单个文件 `sprites.ts` |
-| `src/data/levels/level0*.json` | 实际为 `.ts`，类型为 `LevelDef`。选择 TS 是为了类型检查 |
-| `public/assets/` | 不存在。项目没有素材文件 |
-
-### 5.2 玩法数据
-
-| 项目 | PLAN | 实际 | 对应任务 |
-|------|------|------|----------|
-| 每关波数 | 10~15 波 | 第 1~5 关分别为 4、5、6、7、8 波。已按 D-2 保留现状，PLAN 已改为实际数字（v1.2） | T-08 已完成 |
-| 第 5 关 Boss 出场 | 第 15 波 | 第 8 波（最后一波）。PLAN 已同步（v1.2） | T-08 已完成 |
-| 第 1 关（教学关）内容 | 6 波，只有小兵 | 4 波，包含小兵、飞毛腿、铁壳、爆爆虫、医生怪。PLAN 未同步 | 按 D-2，未改 |
-| 塔解锁 | 第 2 关冰冻星，第 3 关太阳花，第 4 关风扇与火箭；第 1 关只有瓶子塔 | **已实现**（v1.1）。第 2 关另加多重箭，这是 PLAN 未写明的假设 | 已完成 |
-| 铁壳血量 | 400 | 420 | 可接受，以代码为准 |
-| 医生怪血量 | 150 | 160 | 同上 |
-| 自爆虫（爆爆虫）血量 | 80 | 85 | 同上 |
-| Boss 血量 | 3000 | 3200 | 同上 |
-| 怪物速度 | 倍率（1.0、1.8 等） | 像素每秒（62、112 等） | 单位不同，无需修改 |
-
-### 5.3 玩法行为
-
-| 项目 | PLAN | 实际 | 对应任务 |
-|------|------|------|----------|
-| 爆爆虫死亡效果 | 原地爆炸，波及邻近怪物 | 已实现（v1.2）：半径 85，伤害 50，可连锁 | 已完成 |
-| Boss 受击 | 有硬直表现 | 已实现（v1.2）：0.2 秒内速度降为 30%，并轻微压扁 | 已完成 |
-| 对象池 | 子弹、飘字、粒子池化 | 未实现 | T-09 |
-| 萝卜实体 | `Carrot.ts` | 未拆分 | 不处理，记录即可 |
-| 可建造的塔 | 按关卡解锁 | **已实现**（v1.1） | 已完成 |
-
-### 5.4 已实现且与 PLAN 一致
-
-- 六种塔的行为（追踪、减速、多目标、灼烧、穿透、溅射）与三级成长倍率
-- 塔种按关卡解锁，并在建造面板中预览射程
-- 升级费用（0.8 倍、1.2 倍，取整到 10）与出售返还 70%
-- 星级阈值（≥8 得 3 星，≥4 得 2 星）
-- 提前召唤奖励公式
-- 医生怪治疗光环（每 2.5 s 回 25 血，半径 90）
-- 冰冻减速 40%、持续 2 s
-- 障碍物打碎后掉落金币并释放建造位
-- 倍速、暂停、切后台自动暂停
-- 安全区、竖屏提示、DPR 封顶 2
+Timeline from the smoke output (for reference only, not an acceptance criterion): the time for each level's waves to finish is about 51 s, 57 s, 80 s, 92 s and 93 s.
 
 ---
 
-## 六、里程碑与版本
+## 4. Known issues
 
-| 版本 | 状态 | 内容 |
-|------|------|------|
-| v1.0 | ✅ 已完成（基线 `723a02b`） | PLAN M0–M4 |
-| v1.1 | ✅ 已完成（`9a97071`、`220ab54`） | T-01 建造入口与逐关解锁、T-02 FPS 标签仅 `?debug`、T-03 `npm run test:smoke`、T-04 PLAN 偏差注释，D-1 采用方案 B |
-| v1.2 | 🟡 部分完成（`b2d9220`） | T-05 爆爆虫爆炸、T-06 Boss 硬直、T-08 PLAN 波数同步已完成；T-07 待真机 |
-| v1.3 | 🟡 部分完成（未提交） | T-09 已完成（分配量 -33%）、T-10 已完成；T-11 未做，等待用户明确要求 |
+Sorted by severity. Numbers match the tasks in [DEV_PLAN.md](./DEV_PLAN.md).
 
-版本的出口条件见 [DEV_PLAN.md 第三节](./DEV_PLAN.md#三建议的版本节奏)。
+| Level | Issue | Location | Related task |
+|-------|-------|----------|--------------|
+| Medium | Device FPS and the in-WeChat experience are not recorded. The acceptance evidence for PLAN M4 is still missing. | — | T-07 |
+| Low | The visual effects of the Boss stagger and Pumpkin Bomb explosion have not been checked by a person during a full run. The logic is verified by the `/tmp` script, and at runtime only the absence of errors in two levels was confirmed. | `battle/entities/Monster.ts`, `scenes/BattleScene.ts` | T-07 (check together on a real device) |
+| Low | Many allocations per frame: bullets and floating text call `new` each time; `render` copies and sorts the obstacle array every frame; `allTargets` creates a new array on each call. Not yet measured with a profiler, so the impact is unknown. | `BattleScene.ts`, `Bullet.ts`, `Tower.ts` | T-09 |
+| Low | `click-test.cjs` hard-codes the macOS Chrome path, so it only runs on this machine. | `scripts/click-test.cjs` | T-10 |
+| Low | Battle rules have no unit tests, only level-level smoke tests. | `scripts/` | T-11 |
+| Low | The level where multi-arrow unlocks (level 2) is an assumption made in this document. PLAN does not specify it. | `data/levels/level02.ts` | Please confirm, see 5.2 |
+| Low | The targeting strategy is fixed to "furthest along the path first". PLAN 4.1 says it should be configurable (strongest, closest), but the code has no configuration entry. | `battle/entities/Tower.ts` | Not scheduled |
+| Low | No lint or formatting configuration (ESLint, Prettier). | Repository root | Not scheduled |
+
+Fixed in v1.1: only the bottle tower could be built (T-01); the range circle was fixed to the bottle tower (T-01); the release build showed the FPS label (T-02); the README smoke command wrote to `/tmp` (T-03).
+Fixed in v1.2: bomb bugs did not explode on death (T-05); the Boss had no hit stagger (T-06).
 
 ---
 
-## 七、变更日志
+## 5. Document and code deviations
 
-| 日期 | 提交 | 内容 |
-|------|------|------|
-| 2026-11-06 | 未提交 | 伪 3D 渲染（`render/projection.ts`，地面透视、深度排序、道具层、点击反投影，`?flat` 对比模式）；塔的脸、升级外观、光晕、待机小动作；怪物眨眼、受击压扁、死亡残影、飞毛腿兔耳、爆爆虫火绳；`click-test.cjs` 坐标改用同一投影 |
-| 2026-11-04 | `b2d9220` | v1.2：爆爆虫死亡爆炸（`battle/explode.ts`，可连锁，`MonsterType.deathBlast`）；Boss 受击硬直（`MonsterType.hitStagger`）；PLAN 的波数与 Boss 出场波改为实际数字；DEV_PLAN 增加 T-07 设备验证清单 |
-| 2026-11-04 | `9a97071` | v1.1：六塔可建造并按关卡解锁（`LevelDef.unlockedTowers`，建造面板选塔种、射程预览、确认建造）；FPS 标签改为 `?debug` 才显示；新增 `test:smoke` 脚本并把 esbuild 加为开发依赖；点击回归新增第 2 关选冰冻星建造用例；冒烟新增解锁塔种检查；PLAN 4.2 增加偏差注释；README 更新命令与解锁说明 |
-| 2026-11-04 | `220ab54` | 新增 `docs/`：ARCHITECTURE.md、DEV_PLAN.md、PROGRESS.md；README 增加文档入口；PLAN.md 顶部增加指向本文件的说明 |
-| 2026-08-28 | `723a02b` | test：新增 `test:click` 无头浏览器点击回归 |
-| 2026-08-28 | `bf5d04e` | fix：`#ui-root` 遮罩层拦截 canvas 点击，导致无法建塔。改为对指针透明，交互元素各自开启 `pointer-events` |
-| 2026-08-27 | `12d25e5` | chore：初始化仓库，提交 v1.0 完整版本作为基线 |
+The code is the reference. PLAN.md is kept as a historical snapshot, and the deviations are noted in comments at PLAN 4.2.
 
-> 注：`bf5d04e` 的修复与 `723a02b` 的回归测试相互配套。以后修改 `index.html` 的 CSS 层级时，应同时跑一次 `npm run test:click`。
+### 5.1 Directory structure
+
+| PLAN section 4.2 | Actual |
+|------------------|--------|
+| `src/input/` | Actually `src/core/Input.ts` |
+| `src/ui/` (Hud.ts, BuildMenu.ts, Panels.ts) | Does not exist. UI is written directly in `BattleScene.ts` (`buildHud`, `openBuildPanel`, `openTowerPanel`, `openPauseMenu`, `showResult`) |
+| `src/battle/ObjectPool.ts` | Does not exist (see T-09) |
+| `src/battle/entities/Pumpkin.ts` | Does not exist. The pumpkin is drawn by `drawPumpkin` (sprites.ts), and its HP is held in `BattleScene` |
+| `src/render/sprites/` subdirectory | Actually a single file, `sprites.ts` |
+| `src/data/levels/level0*.json` | Actually `.ts`, typed as `LevelDef`. TS was chosen for type checking |
+| `public/assets/` | Does not exist. The project has no asset files |
+
+### 5.2 Gameplay data
+
+| Item | PLAN | Actual | Related task |
+|------|------|--------|--------------|
+| Waves per level | 10~15 waves | Levels 1~5 have 4, 5, 6, 7 and 8 waves. Kept as is per D-2; PLAN was changed to the actual numbers (v1.2) | T-08 complete |
+| Level 5 Boss appearance | Wave 15 | Wave 8 (the last wave). PLAN synced (v1.2) | T-08 complete |
+| Level 1 (tutorial level) content | 6 waves, only Little Ghosts | 4 waves, including Little Ghosts, Black Cats, Mummies, Pumpkin Bombs and Witches. PLAN not synced | Not changed, per D-2 |
+| Tower unlocks | Level 2 ice star, level 3 sunflower, level 4 fan and rocket; level 1 has only the bottle tower | **Implemented** (v1.1). Level 2 also adds the multi-arrow, an assumption that PLAN does not state | Complete |
+| Mummy HP | 400 | 420 | Acceptable, code is the reference |
+| Witch HP | 150 | 160 | Same as above |
+| Pumpkin Bomb HP | 80 | 85 | Same as above |
+| Boss HP | 3000 | 3200 | Same as above |
+| Monster speed | Multiplier (1.0, 1.8, etc.) | Pixels per second (62, 112, etc.) | Different units, no change needed |
+
+### 5.3 Gameplay behavior
+
+| Item | PLAN | Actual | Related task |
+|------|------|--------|--------------|
+| Pumpkin Bomb death effect | Explodes in place and hits nearby monsters | Implemented (v1.2): radius 85, damage 50, can chain | Complete |
+| Boss hit reaction | Shows a stagger | Implemented (v1.2): speed drops to 30% within 0.2 s, with a slight squash | Complete |
+| Object pooling | Pool bullets, floating text and particles | Not implemented | T-09 |
+| Pumpkin entity | `Pumpkin.ts` | Not split out | Not addressed, just recorded |
+| Buildable towers | Unlocked by level | **Implemented** (v1.1) | Complete |
+
+### 5.4 Implemented and consistent with PLAN
+
+- Behavior of the six towers (tracking, slow, multi-target, burn, pierce, splash) and their three-level growth multipliers
+- Tower types unlock by level, and the build panel previews the range
+- Upgrade cost (0.8×, 1.2×, rounded to 10) and 70% refund on sale
+- Star thresholds (≥8 gives 3 stars, ≥4 gives 2 stars)
+- Early wave call reward formula
+- Witch healing aura (25 HP every 2.5 s, radius 90)
+- Ice slow of 40% for 2 s
+- Obstacles drop gold when broken and release their build slot
+- Speed-up, pause, and auto-pause when switching to the background
+- Safe area, portrait hint, DPR capped at 2
+
+---
+
+## 6. Milestones and versions
+
+| Version | Status | Content |
+|---------|--------|---------|
+| v1.0 | ✅ Complete (baseline `723a02b`) | PLAN M0–M4 |
+| v1.1 | ✅ Complete (`9a97071`, `220ab54`) | T-01 build entry and per-level unlocks, T-02 FPS label only with `?debug`, T-03 `npm run test:smoke`, T-04 PLAN deviation notes, D-1 adopts option B |
+| v1.2 | 🟡 Partially complete (`b2d9220`) | T-05 Pumpkin Bomb explosion, T-06 Boss stagger, T-08 PLAN wave count sync complete; T-07 waiting for a real device |
+| v1.3 | 🟡 Partially complete (uncommitted) | T-09 complete (allocation -33%), T-10 complete; T-11 not done, waiting for an explicit request from the user |
+
+For the exit conditions of each version, see [DEV_PLAN.md section 3](./DEV_PLAN.md#3-suggested-version-schedule).
+
+---
+
+## 7. Changelog
+
+| Date | Commit | Content |
+|------|--------|---------|
+| 2026-11-06 | Uncommitted | Pseudo-3D rendering (`render/projection.ts`: perspective ground, depth sorting, prop layer, click back-projection, `?flat` comparison mode); tower faces, upgrade appearance, glow, idle small motions; monster blinking, hit squash, death afterimage, hopper rabbit ears, bomb bug fuse; `click-test.cjs` coordinates now use the same projection |
+| 2026-11-04 | `b2d9220` | v1.2: bomb bug death explosion (`battle/explode.ts`, chainable, `MonsterType.deathBlast`); Boss hit stagger (`MonsterType.hitStagger`); PLAN wave counts and Boss appearance wave changed to actual numbers; DEV_PLAN adds the T-07 device verification checklist |
+| 2026-11-04 | `9a97071` | v1.1: six towers buildable and unlocked by level (`LevelDef.unlockedTowers`, build panel selects tower type, range preview, confirm build); FPS label shown only with `?debug`; new `test:smoke` script and esbuild added as a dev dependency; click regression adds a level-2 case of choosing the ice star to build; smoke adds a tower-unlock check; PLAN 4.2 adds deviation notes; README updated with commands and unlock notes |
+| 2026-11-04 | `220ab54` | Added `docs/`: ARCHITECTURE.md, DEV_PLAN.md, PROGRESS.md; README adds docs entry; PLAN.md header adds a note pointing to this file |
+| 2026-08-28 | `723a02b` | test: added `test:click` headless browser click regression |
+| 2026-08-28 | `bf5d04e` | fix: the `#ui-root` overlay blocked canvas clicks, so towers could not be built. Changed to pointer-transparent, with interactive elements enabling `pointer-events` individually |
+| 2026-08-27 | `12d25e5` | chore: initialized repository, committed the full v1.0 version as the baseline |
+
+> Note: the fix in `bf5d04e` and the regression test in `723a02b` go together. When changing the CSS layering in `index.html` in future, run `npm run test:click` as well.

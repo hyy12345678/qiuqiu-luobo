@@ -1,86 +1,88 @@
-# 球球萝卜 · 后续开发计划
+English | [中文](DEV_PLAN.zh-CN.md)
 
-> 基于 2026-11-04 对代码的核对。v1.0 的里程碑（M0–M4）已在 PLAN.md 中标记完成，但实际内容和原规划有差距。本文件列出接下来要做的事，按优先级排序。
-> 当前进度与验证记录见 [PROGRESS.md](./PROGRESS.md)，架构见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+# Qiuqiu Pumpkin · Follow-up Development Plan
 
----
-
-## 一、需要先拍板的决策
-
-开发前需要确认以下两项。每项都给了默认建议，没有回复时可以按建议执行。
-
-| 编号 | 问题 | 选项 | 建议 |
-|------|------|------|------|
-| **D-1** | 五种非瓶子塔怎么开放？ | A. 默认全部可建造，直接在建造菜单选塔种<br>B. 按关卡解锁（PLAN 第 3.5 节的设计：第 2 关解锁冰冻星，第 3 关解锁太阳花，第 4 关解锁风扇/火箭） | **B（已采用，v1.1 完成）**。与 PLAN 一致，并保留五关的节奏。`LevelDef` 新增 `unlockedTowers` 字段。 |
-| **D-2** | 波数要不要按 PLAN 扩充到 10~15 波？ | A. 保持现在的 4~8 波，把关卡当作短局<br>B. 按 PLAN 扩到 10~15 波，Boss 放在第 15 波 | **A（已采用）**。现在的波数已经能跑完流程。是否扩充留到 D-1 完成后的试玩再定。 |
+> Based on a code review dated 2026-11-04. The v1.0 milestones (M0–M4) are marked complete in PLAN.md, but the actual content differs from the original plan. This file lists the next items to do, in priority order.
+> Current progress and verification records are in [PROGRESS.md](./PROGRESS.md). Architecture is in [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
-## 二、待办清单
+## 1. Decisions to make first
 
-每项都有验收标准。完成一项后，把状态改为 ✅，并在 PROGRESS.md 的变更日志里记一行。
+Two decisions need to be confirmed before development starts. Each one has a default recommendation. If there is no reply, follow the recommendation.
 
-### P0：阻塞性缺口（v1.1，已全部完成）
-
-| 编号 | 任务 | 涉及文件 | 验收标准 |
-|------|------|----------|----------|
-| **T-01** | 开放全部六种塔的建造入口。建造面板从「只有一个按钮」改为「塔种选择」，显示造价与描述。选中格子时射程圈跟随所选塔种。按 D-1 的结果决定可选集合。 | `scenes/BattleScene.ts`（`openBuildPanel`、`buildAtSelected`、`onTap` 中的射程圈）、`data/levels/types.ts`、各关卡文件 | 在第 4 关能建造风扇塔与火箭塔，扣费正确，射程圈与实际射程一致。`click-test` 增加一条「选择非瓶子塔并建造」的用例。 |
-| **T-02** | 去掉正式版本里的 FPS 调试标签，或者改为仅在 `?debug` 参数或开发环境下显示。 | `core/Game.ts` | 正式构建的画面左上角没有 FPS 标签。开发模式下仍能看到。 |
-| **T-03** | 把逻辑冒烟测试接入 npm 脚本（如 `test:smoke`），并更新 README。目前 README 写的命令会把产物输出到 `/tmp`，不稳定，换一台机器或重启后就不能直接复用。 | `package.json`、`README.md` | `npm run test:smoke` 能直接跑通，输出 56 项全部通过。README 中的命令与之一致。 |
-| **T-04** | 对齐 PLAN.md 与代码。PLAN 第四节列出的目录（`ui/`、`ObjectPool.ts`、`Carrot.ts`、`levels/*.json`）在仓库中不存在。选择一种处理方式：更新 PLAN 使其描述实际结构，或者按 PLAN 调整代码。 | `PLAN.md`，可能还有 `src/` | PLAN 中的目录结构与 `src/` 一致；或者偏差已在 PLAN 中注明理由。 |
-
-### P1：玩法与体验缺口（T-05、T-06、T-08 已完成；T-07 待真机）
-
-| 编号 | 任务 | 涉及文件 | 验收标准 |
-|------|------|----------|----------|
-| **T-05** ✅ | 爆爆虫死亡时在原地爆炸，波及周围怪物（PLAN 第 3.3 节；障碍物与萝卜不受影响）。目前它只是一个快速、伤害为 2 的普通怪。 | `battle/entities/Monster.ts`、`scenes/BattleScene.ts` | 击杀爆爆虫会对半径内的其他怪造成伤害，并播放爆炸特效。第 1 关与第 2 关的爆爆虫都有这个效果。 |
-| **T-06** ✅ | Boss 受击硬直。PLAN 写了「受击有硬直表现」，目前只有白闪。 | `battle/entities/Monster.ts` | Boss 被击中时，移动速度短暂降低或停顿。普通怪不受影响。 |
-| **T-07** | 真机与微信内置浏览器验证。PLAN M4 的验收标准「主流真机 60fps、微信内可正常游玩」在仓库里没有证据。 | 无代码改动 | 在至少一台 iOS 和一台 Android 上记录 FPS，并在微信内打开一局。结果写入 PROGRESS.md。 |
-| **T-08** ✅ | 波次内容：按 D-2 的结论决定是否扩充。 | `data/levels/level0*.ts` | 每关的波数与 PLAN 第 3.5 节一致，或者在 PLAN 中改为实际数字。 |
-
-### P2：工程质量与性能（有时间再做）
-
-| 编号 | 任务 | 涉及文件 | 验收标准 |
-|------|------|----------|----------|
-| **T-09** ✅ | 减少每帧分配（2026-11-04 完成：分配量 109.7 MB → 73.0 MB，见 PROGRESS 验证记录）。目前子弹、飘字每次都 `new`；`BattleScene.render` 每帧复制并排序 `obstacles`；`allTargets` 每次调用都新建数组。先用 Chrome Performance 面板测一下，再决定是否做对象池。 | `battle/entities/Bullet.ts`、`scenes/BattleScene.ts`、`battle/effects.ts` | 战斗中 60 秒的 GC 次数有明确的前后对比数据。 |
-| **T-10** ✅ | 把 `click-test.cjs` 的 Chrome 路径改为可配置（已完成：读取 `CHROME_PATH`，未设置时按平台取默认路径）（环境变量），目前写死了 macOS 路径。 | `scripts/click-test.cjs` | 设置 `CHROME_PATH` 后可在其他系统运行。 |
-| **T-11** | 补充逻辑单元测试（塔升级倍率、售价返还、提前召唤奖励、`WaveManager.tryCallNext`）。目前只有关卡级冒烟测试，战斗规则没有直接覆盖。 | `scripts/` 或新增 `tests/` | 测试覆盖上述规则。（需要用户明确要求后再做，见项目约定。） |
-
-### P3：后续扩展（来自 PLAN 第十节，本期不做）
-
-- 更多关卡与主题地形（雪地、沙漠、地下洞穴）
-- 飞行怪与防空塔
-- 塔的主动技能
-- 成就系统、每日挑战、无尽模式
-- 微信分享战绩海报
+| ID | Question | Options | Recommendation |
+|----|----------|---------|----------------|
+| **D-1** | How should the five non-bottle towers be unlocked? | A. All available by default; pick any tower type from the build menu<br>B. Unlock by level (the design in PLAN section 3.5: Spider Web unlocks at level 2, Candle Tower at level 3, Witch Broom/Pumpkin Cannon at level 4) | **B (adopted, completed in v1.1)**. Matches PLAN and keeps the pacing across the five levels. `LevelDef` gets a new `unlockedTowers` field. |
+| **D-2** | Should the wave count be expanded to 10–15 waves as in PLAN? | A. Keep the current 4–8 waves and treat each level as a short session<br>B. Expand to 10–15 waves, with the boss on wave 15 | **A (adopted)**. The current wave counts already run through the full flow. Whether to expand will be decided after playtesting D-1. |
 
 ---
 
-## 三、建议的版本节奏
+## 2. Task list
 
-| 版本 | 包含 | 出口条件 |
-|------|------|----------|
-| v1.0（已完成） | PLAN M0–M4 | 基线 commit `723a02b` |
-| **v1.1**（已完成） | T-01、T-02、T-03、T-04；D-1 确定 | 五种塔可在对应关卡建造；`npm run typecheck`、`build`、`test:smoke`、`test:click` 全部通过 |
-| v1.2（部分完成，`b2d9220`） | T-05、T-06、T-08 已完成；T-07 待真机 | 真机记录齐全；爆爆虫与 Boss 行为符合 PLAN |
-| v1.3（部分完成） | T-09、T-10 已完成；T-11 未做，等待用户明确要求 | 有性能对比数据；测试覆盖战斗规则 |
+Every item has acceptance criteria. When an item is finished, change its status to ✅ and add one line to the change log in PROGRESS.md.
 
-每个版本结束时更新 PROGRESS.md 中的里程碑表和验证记录。
+### P0: Blocking gaps (v1.1, all completed)
+
+| ID | Task | Files involved | Acceptance criteria |
+|----|------|----------------|---------------------|
+| **T-01** | Open the build entry for all six tower types. The build panel changes from "one button only" to a "tower type selector" that shows cost and description. When a cell is selected, the range circle follows the chosen tower type. The selectable set follows the D-1 decision. | `scenes/BattleScene.ts` (`openBuildPanel`, `buildAtSelected`, and the range circle in `onTap`), `data/levels/types.ts`, the individual level files | On level 4, the Witch Broom and Pumpkin Cannon towers can be built, the cost is charged correctly, and the range circle matches the actual range. `click-test` gains one case: "select a non-bottle tower and build it". |
+| **T-02** | Remove the FPS debug label from the production build, or show it only with the `?debug` parameter or in the development environment. | `core/Game.ts` | The production build shows no FPS label in the top-left corner. It is still visible in development mode. |
+| **T-03** | Hook the logic smoke test into an npm script (for example `test:smoke`) and update the README. The README currently gives a command that writes its output to `/tmp`, which is unreliable: after switching machines or rebooting, it cannot be reused directly. | `package.json`, `README.md` | `npm run test:smoke` runs successfully, with all 56 checks passing. The commands in the README match it. |
+| **T-04** | Align PLAN.md with the code. The directories listed in PLAN section 4 (`ui/`, `ObjectPool.ts`, `Pumpkin.ts`, `levels/*.json`) do not exist in the repository. Choose one approach: update PLAN so it describes the actual structure, or adjust the code to match PLAN. | `PLAN.md`, possibly `src/` | The directory structure in PLAN matches `src/`, or the deviations are documented in PLAN with reasons. |
+
+### P1: Gameplay and experience gaps (T-05, T-06, T-08 completed; T-07 waiting on real devices)
+
+| ID | Task | Files involved | Acceptance criteria |
+|----|------|----------------|---------------------|
+| **T-05** ✅ | When a Pumpkin Bomb dies, it explodes in place and damages nearby monsters (PLAN section 3.3; obstacles and the pumpkin are not affected). Currently it is just a fast, 2-damage ordinary monster. | `battle/entities/Monster.ts`, `scenes/BattleScene.ts` | Killing a Pumpkin Bomb damages other monsters within its radius and plays an explosion effect. Pumpkin Bombs on levels 1 and 2 both have this effect. |
+| **T-06** ✅ | Boss hit stun. PLAN states "taking a hit has a stun effect", but currently the boss only flashes white. | `battle/entities/Monster.ts` | When the boss is hit, its movement speed drops or it pauses briefly. Ordinary monsters are not affected. |
+| **T-07** | Verification on real devices and in the WeChat built-in browser. The PLAN M4 acceptance criterion "mainstream real devices run at 60fps, and the game is playable inside WeChat" has no evidence in the repository. | No code changes | Record FPS on at least one iOS device and one Android device, and open a full session inside WeChat. Record the results in PROGRESS.md. |
+| **T-08** ✅ | Wave content: decide whether to expand, based on the D-2 conclusion. | `data/levels/level0*.ts` | The wave count for each level matches PLAN section 3.5, or PLAN is changed to show the actual numbers. |
+
+### P2: Engineering quality and performance (when time allows)
+
+| ID | Task | Files involved | Acceptance criteria |
+|----|------|----------------|---------------------|
+| **T-09** ✅ | Reduce per-frame allocations (completed 2026-11-04: allocations went from 109.7 MB to 73.0 MB; see the verification record in PROGRESS). Bullets and floating text currently call `new` every time; `BattleScene.render` copies and sorts `obstacles` every frame; `allTargets` creates a new array on every call. Measure with the Chrome Performance panel first, then decide whether to use object pooling. | `battle/entities/Bullet.ts`, `scenes/BattleScene.ts`, `battle/effects.ts` | There is clear before-and-after data on GC count for 60 seconds of battle. |
+| **T-10** ✅ | Make the Chrome path in `click-test.cjs` configurable (completed: it reads the `CHROME_PATH` environment variable and, if that is unset, uses the default path for the platform). It previously hard-coded the macOS path. | `scripts/click-test.cjs` | With `CHROME_PATH` set, the script runs on other operating systems. |
+| **T-11** | Add unit tests for the logic (tower upgrade multipliers, sell refunds, early-call rewards, `WaveManager.tryCallNext`). Currently only level-level smoke tests exist, and no battle rules are directly covered. | `scripts/` or a new `tests/` directory | The tests cover the rules above. (Do this only after the user explicitly asks for it. See the project conventions.) |
+
+### P3: Future extensions (from PLAN section 10, not in this round)
+
+- More levels and themed terrain (snow, desert, underground caves)
+- Flying monsters and anti-air towers
+- Active skills for towers
+- Achievement system, daily challenges, endless mode
+- WeChat share poster for results
 
 ---
 
-## 附：T-07 设备验证清单
+## 3. Suggested version schedule
 
-此项需要真机，无法在开发环境内完成。测试时在地址后加 `?debug`，左上角会显示 FPS。把结果填入 PROGRESS.md 的验证记录表。
+| Version | Contents | Exit condition |
+|---------|----------|----------------|
+| v1.0 (completed) | PLAN M0–M4 | Baseline commit `723a02b` |
+| **v1.1** (completed) | T-01, T-02, T-03, T-04; D-1 decided | All five tower types can be built on their levels; `npm run typecheck`, `build`, `test:smoke`, and `test:click` all pass |
+| v1.2 (partly completed, `b2d9220`) | T-05, T-06, T-08 completed; T-07 waiting on real devices | Real-device records are complete; Pumpkin Bomb and boss behavior match PLAN |
+| v1.3 (partly completed) | T-09, T-10 completed; T-11 not started, waiting for an explicit request from the user | Performance comparison data exists; tests cover the battle rules |
 
-| 设备 | 系统 / 浏览器 | 平均 FPS（第 4 关，建满塔） | 最低 FPS | 微信内打开可玩 | 备注 |
-|------|----------------|----------------------------|----------|----------------|------|
-| iPhone（待填） | iOS / Safari | | | | |
-| Android（待填） | Android / Chrome | | | | |
-| Android（待填） | 微信内置浏览器 | | | | |
+At the end of each version, update the milestone table and the verification records in PROGRESS.md.
 
-检查项：
-1. 选关、建塔、升级、出售、暂停、倍速、切后台后返回，画面与逻辑都正常。
-2. 第 5 关 Boss 出场后，Boss 受击有明显的压扁与减速表现，不会卡住。
-3. 第 4 关爆爆虫成群死亡时，爆炸特效与震动正常，帧率没有明显下降。
-4. 刷新页面后星级与解锁状态保留。
+---
+
+## Appendix: T-07 device verification checklist
+
+This item needs real devices and cannot be completed in the development environment. During testing, add `?debug` to the URL, and the FPS will show in the top-left corner. Enter the results in the verification record table in PROGRESS.md.
+
+| Device | OS / browser | Average FPS (level 4, all towers built) | Lowest FPS | Playable when opened in WeChat | Notes |
+|--------|--------------|------------------------------------------|------------|--------------------------------|-------|
+| iPhone (to fill in) | iOS / Safari | | | | |
+| Android (to fill in) | Android / Chrome | | | | |
+| Android (to fill in) | WeChat built-in browser | | | | |
+
+Checklist:
+1. Select a level, build towers, upgrade, sell, pause, change game speed, and return after switching to the background. The display and the logic must both work correctly.
+2. After the level 5 boss appears, the boss shows a clear squash and slowdown when hit, and it does not get stuck.
+3. On level 4, when Pumpkin Bombs die in a group, the explosion effect and screen shake work correctly, and the frame rate does not drop noticeably.
+4. After refreshing the page, star ratings and unlock state are preserved.

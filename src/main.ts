@@ -5,8 +5,10 @@ import { Input } from './core/Input';
 import { MenuScene } from './scenes/MenuScene';
 import { BattleScene } from './scenes/BattleScene';
 import { audio } from './audio/AudioManager';
+import { applyStaticText } from './i18n';
 
 function main(): void {
+  applyStaticText();
   const stage = document.getElementById('stage') as HTMLElement;
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   const uiRoot = document.getElementById('ui-root') as HTMLElement;

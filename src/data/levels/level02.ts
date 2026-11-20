@@ -3,9 +3,9 @@ import type { LevelDef } from './types';
 /** 第 2 关：双溪口——两条入怪口汇流，学会分兵布防 */
 export const LEVEL_2: LevelDef = {
   id: 2,
-  name: '双溪口',
+  name: 'level.2',
   startGold: 300,
-  carrotHp: 10,
+  pumpkinHp: 10,
   unlockedTowers: ['bottle', 'frost', 'multishot'],
   paths: [
     [

@@ -1,15 +1,18 @@
 import type { MonsterSkin } from '../render/sprites';
 
+import type { TKey } from '../i18n';
+
 export interface MonsterType {
   id: string;
-  name: string;
+  /** 字典键，显示时用 t() 翻译 */
+  name: TKey;
   hp: number;
   /** 像素/秒 */
   speed: number;
   bounty: number;
   /** 碰撞与绘制半径 */
   radius: number;
-  /** 到达终点啃萝卜扣的血 */
+  /** 到达终点啃南瓜扣的血 */
   damage: number;
   /** 减速抗性（0~1），Boss 用 */
   slowResist?: number;
@@ -23,36 +26,36 @@ export interface MonsterType {
 /** 五怪 + Boss：标准 / 快速 / 肉盾 / 治疗 / 自爆冲刺 */
 export const MONSTERS: Record<string, MonsterType> = {
   grunt: {
-    id: 'grunt', name: '果冻小兵',
+    id: 'grunt', name: 'monster.grunt',
     hp: 100, speed: 62, bounty: 10, radius: 23, damage: 1,
-    skin: { body: '#6cc24a', dark: '#3f8f2a', kind: 'round' },
+    skin: { body: '#d9d4f5', dark: '#8b84b8', kind: 'round' },
   },
   runner: {
-    id: 'runner', name: '飞毛腿',
+    id: 'runner', name: 'monster.runner',
     hp: 60, speed: 112, bounty: 12, radius: 20, damage: 1,
-    skin: { body: '#ffd44d', dark: '#c99a1a', kind: 'tall' },
+    skin: { body: '#2d2433', dark: '#110b17', kind: 'tall' },
   },
   tank: {
-    id: 'tank', name: '铁壳',
+    id: 'tank', name: 'monster.tank',
     hp: 420, speed: 44, bounty: 25, radius: 28, damage: 2,
-    skin: { body: '#93a8bc', dark: '#54697d', kind: 'tank' },
+    skin: { body: '#e9d9a6', dark: '#a88f4f', kind: 'tank' },
   },
   healer: {
-    id: 'healer', name: '医生怪',
+    id: 'healer', name: 'monster.healer',
     hp: 160, speed: 58, bounty: 20, radius: 23, damage: 1,
-    skin: { body: '#f2f6f4', dark: '#8fa89e', kind: 'healer' },
+    skin: { body: '#8e44ad', dark: '#4a1c63', kind: 'healer' },
   },
   bomber: {
-    id: 'bomber', name: '爆爆虫',
+    id: 'bomber', name: 'monster.bomber',
     hp: 85, speed: 92, bounty: 15, radius: 19, damage: 2,
     deathBlast: { radius: 85, damage: 50 },
-    skin: { body: '#ff6b4a', dark: '#c23a22', kind: 'bomb' },
+    skin: { body: '#ff8c1a', dark: '#b34a00', kind: 'bomb' },
   },
   boss: {
-    id: 'boss', name: '萝卜巨兽',
+    id: 'boss', name: 'monster.boss',
     hp: 3200, speed: 42, bounty: 200, radius: 40, damage: 3, slowResist: 0.5,
     hitStagger: { dur: 0.2, speedMul: 0.3 },
-    skin: { body: '#8e5bd6', dark: '#4d2b96', kind: 'boss' },
+    skin: { body: '#4b1f5c', dark: '#1d0a26', kind: 'boss' },
   },
 };
 
