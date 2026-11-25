@@ -59,9 +59,12 @@ async function clickByText(page, selector, text) {
     args: ['--no-sandbox', '--disable-gpu', '--window-size=1280,720'],
   });
 
-  // ---------- 场景一：全新存档，第 1 关只能建瓶子塔 ----------
+  // ---------- 场景一：全新存档，第 1 关只能建药剂塔 ----------
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 720 });
+  await page.evaluateOnNewDocument((key) => {
+    localStorage.setItem(key, JSON.stringify({ stars: {}, muted: false, lang: 'zh' }));
+  }, SAVE_KEY);
   const errors = [];
   attachErrors(page, errors);
 
@@ -93,9 +96,9 @@ async function clickByText(page, selector, text) {
   console.log(panelState.visible ? 'PASS: 点击草地弹出建造面板' : 'FAIL: 点击草地无反应');
 
   const labels1 = await towerLabels(page);
-  const onlyBottle = labels1.length === 1 && labels1[0].includes('瓶子塔');
+  const onlyBottle = labels1.length === 1 && labels1[0].includes('药剂塔');
   console.log('第 1 关可选塔:', JSON.stringify(labels1));
-  console.log(onlyBottle ? 'PASS: 第 1 关只显示瓶子塔' : 'FAIL: 第 1 关可选塔不是仅瓶子塔');
+  console.log(onlyBottle ? 'PASS: 第 1 关只显示药剂塔' : 'FAIL: 第 1 关可选塔不是仅药剂塔');
 
   let built = false;
   if (panelState.visible) {
@@ -117,13 +120,13 @@ async function clickByText(page, selector, text) {
   });
   console.log(roadPanel ? 'FAIL: 点路面也弹面板（可建造判定异常）' : 'PASS: 点路面不弹面板');
 
-  // ---------- 场景二：已通关第 1 关，第 2 关解锁冰冻星与多重箭 ----------
+  // ---------- 场景二：已通关第 1 关，第 2 关解锁蜘蛛网与多重箭 ----------
   const page2 = await browser.newPage();
   await page2.setViewport({ width: 1280, height: 720 });
   const errors2 = [];
   attachErrors(page2, errors2);
   await page2.evaluateOnNewDocument((key) => {
-    localStorage.setItem(key, JSON.stringify({ stars: { 1: 1 }, muted: true }));
+    localStorage.setItem(key, JSON.stringify({ stars: { 1: 1 }, muted: true, lang: 'zh' }));
   }, SAVE_KEY);
   await page2.goto(URL, { waitUntil: 'networkidle0' });
   await sleep(500);
@@ -139,25 +142,25 @@ async function clickByText(page, selector, text) {
     await sleep(300);
 
     const labels2 = await towerLabels(page2);
-    const hasFrost = labels2.some(t => t.includes('冰冻星'));
-    const noLocked = !labels2.some(t => t.includes('火箭塔') || t.includes('太阳花') || t.includes('风扇塔'));
+    const hasFrost = labels2.some(t => t.includes('蜘蛛网'));
+    const noLocked = !labels2.some(t => t.includes('南瓜炮') || t.includes('烛火塔') || t.includes('女巫扫帚'));
     console.log('第 2 关可选塔:', JSON.stringify(labels2));
-    console.log(hasFrost && noLocked ? 'PASS: 第 2 关显示冰冻星且未解锁的塔不可见' : 'FAIL: 第 2 关塔种列表不正确');
+    console.log(hasFrost && noLocked ? 'PASS: 第 2 关显示蜘蛛网且未解锁的塔不可见' : 'FAIL: 第 2 关塔种列表不正确');
 
     const goldBefore2 = await readGold(page2);
-    const selected = await clickByText(page2, '.build-bar button', '冰冻星');
+    const selected = await clickByText(page2, '.build-bar button', '蜘蛛网');
     await sleep(150);
     const confirmText = await page2.evaluate(() => {
       const b = [...document.querySelectorAll('.build-bar button')].find(x => x.textContent.startsWith('✔ 建造'));
       return b ? b.textContent : null;
     });
-    console.log('选中冰冻星后确认按钮:', confirmText);
+    console.log('选中蜘蛛网后确认按钮:', confirmText);
     const confirmed = await clickByText(page2, '.build-bar button', '✔ 建造');
     await sleep(300);
     const goldAfter2 = await readGold(page2);
     frostBuilt = selected && confirmed && confirmText && confirmText.includes('140') &&
       goldBefore2 != null && goldAfter2 === goldBefore2 - 140;
-    console.log('建冰冻星后金币:', goldAfter2, frostBuilt ? 'PASS: 选择冰冻星并建造，扣 140' : 'FAIL: 冰冻星建造失败或扣费错误');
+    console.log('建蜘蛛网后金币:', goldAfter2, frostBuilt ? 'PASS: 选择蜘蛛网并建造，扣 140' : 'FAIL: 蜘蛛网建造失败或扣费错误');
   }
 
   if (errors.length) console.log('运行时错误（场景一）:\n' + errors.join('\n'));
