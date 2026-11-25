@@ -7,8 +7,8 @@ import { Bullet, FanBlade } from './Bullet';
 import { audio } from '../../audio/AudioManager';
 import type { SfxName } from '../../audio/AudioManager';
 import { enterGround, enterUpright } from '../../render/projection';
-import { drawTowerArt, drawTowerPlinth, towerAccent, candleFlameRgb } from '../../render/towerArt';
-import type { TowerMood } from '../../render/towerArt';
+import { drawTowerArt, drawTowerPlinth, drawTowerGroundLight, towerAccent, candleFlameRgb } from '../../render/towerArt';
+import type { TowerMood, TowerArtState } from '../../render/towerArt';
 
 export interface TowerContext {
   monsters: Monster[];
@@ -276,7 +276,17 @@ export class Tower {
       ctx.fill();
       ctx.stroke();
     }
+    const art: TowerArtState = {
+      level: this.level,
+      branch,
+      fire: f,
+      t: this.t,
+      mood: this.curMood,
+      lean: this.lean,
+      pulse: this.pulseT,
+    };
     drawTowerPlinth(ctx, this.level, accent, this.t);
+    drawTowerGroundLight(ctx, this.type.id, art);
     ctx.restore();
 
     // 直立部分：塔身按远近整体缩放
@@ -292,15 +302,7 @@ export class Tower {
     const tier = TIER_SCALE[this.level - 1] * (1 + this.popT * 0.22);
     ctx.scale(tier * (1 + f * 0.06), tier * (1 - f * 0.09));
     ctx.translate(0, -12);
-    drawTowerArt(ctx, this.type.id, {
-      level: this.level,
-      branch,
-      fire: f,
-      t: this.t,
-      mood: this.curMood,
-      lean: this.lean,
-      pulse: this.pulseT,
-    });
+    drawTowerArt(ctx, this.type.id, art);
     ctx.restore();
 
     // 烛火塔灼烧脉冲环

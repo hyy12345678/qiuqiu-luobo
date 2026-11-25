@@ -53,7 +53,13 @@ export function towerAccent(kind: TowerKind, branch: BranchKey): string {
 
 export function drawTowerArt(ctx: CanvasRenderingContext2D, kind: TowerKind, s: TowerArtState): void {
   const accent = towerAccent(kind, s.branch);
-  if (s.level >= 3) drawWisps(ctx, s, accent, false);
+  if (s.level >= 3) {
+    // 塔身后面一道淡淡的光柱
+    ctx.globalAlpha = 0.28 + Math.sin(s.t * 2.4) * 0.06;
+    glowEllipse(ctx, 0, -34, 24, 52, hexRgb(accent));
+    ctx.globalAlpha = 1;
+    drawWisps(ctx, s, accent, false);
+  }
   switch (kind) {
     case 'bottle': drawCauldron(ctx, s); break;
     case 'frost': drawSpider(ctx, s); break;
@@ -78,11 +84,9 @@ export function drawTowerPlinth(
   t: number,
 ): void {
   const rgb = hexRgb(accent);
-  // 接触阴影
-  ctx.fillStyle = 'rgba(12,6,20,0.38)';
-  ctx.beginPath();
-  ctx.ellipse(0, 22, 42, 15, 0, 0, TAU);
-  ctx.fill();
+  // 投影：月光在左上，影子向右下拉长、边缘虚化；塔座正下方再压一圈接触暗部
+  softShadow(ctx, 10, 26, 50, 19, 0.55);
+  softShadow(ctx, 0, 20, 38, 14, 0.5);
   // 等级光晕
   if (level >= 2) {
     ctx.globalAlpha = level >= 3 ? 0.6 + Math.sin(t * 2.4) * 0.12 : 0.38;
@@ -165,6 +169,51 @@ export function drawTowerPlinth(
   }
 }
 
+/**
+ * 塔身发光部件投在塔座和草地上的光（加色混合）。随火焰闪烁、开火时一亮。
+ * 与 drawTowerPlinth 一样在地面坐标中调用，放在塔座之后。
+ */
+export function drawTowerGroundLight(ctx: CanvasRenderingContext2D, kind: TowerKind, s: TowerArtState): void {
+  const { t, fire: f, pulse, branch } = s;
+  let rgb: string;
+  let a: number;
+  let r: number;
+  switch (kind) {
+    case 'bottle':
+      rgb = (branch === 'A' ? BREW_LIME : branch === 'B' ? BREW_PURPLE : BREW_GREEN).rgb;
+      a = 0.42 + Math.sin(t * 3) * 0.06 + f * 0.5;
+      r = 48;
+      break;
+    case 'sunflower':
+      rgb = candleFlameRgb(branch);
+      a = 0.5 + Math.sin(t * 13) * 0.05 + Math.sin(t * 7.3) * 0.05 + pulse * 0.55 + (s.level - 1) * 0.08;
+      r = 58;
+      break;
+    case 'rocket':
+      rgb = '255,170,50';
+      a = 0.32 + Math.sin(t * 6) * 0.04 + f * 0.9;
+      r = 50 + f * 14;
+      break;
+    case 'frost':
+      rgb = hexRgb(towerAccent(kind, branch));
+      a = 0.2 + f * 0.4;
+      r = 40;
+      break;
+    case 'fan':
+      rgb = branch === 'A' ? '94,230,200' : branch === 'B' ? '255,95,162' : '255,224,102';
+      a = 0.18 + f * 0.45;
+      r = 40;
+      break;
+    default:
+      rgb = branch === 'B' ? '255,210,58' : '255,74,74';
+      a = 0.16 + f * 0.35;
+      r = 36;
+  }
+  ctx.globalAlpha = Math.min(1, a);
+  glow(ctx, 0, 12, r, rgb);
+  ctx.globalAlpha = 1;
+}
+
 // ================= 药剂塔：三爪坩埚 =================
 
 interface Brew { hi: string; mid: string; lo: string; rgb: string }
@@ -227,6 +276,8 @@ function drawCauldron(ctx: CanvasRenderingContext2D, s: TowerArtState): void {
     return g;
   });
   ctx.fill();
+  shade(ctx, potPath, 'pot', -30, -20, 30, 10, 0.5, false);
+  potPath();
   ctx.lineWidth = 2.8;
   ctx.strokeStyle = INK;
   ctx.stroke();
@@ -692,16 +743,19 @@ function fuzzyBlob(
 ): void {
   ctx.save();
   ctx.translate(x, y);
-  ctx.beginPath();
-  for (let i = 0; i <= n * 2; i++) {
-    const a = (i / (n * 2)) * TAU;
-    const k = i % 2 === 0 ? 1 : 1 + fuzz / Math.min(rx, ry);
-    const px = Math.cos(a) * rx * k;
-    const py = Math.sin(a) * ry * k;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
+  const path = (): void => {
+    ctx.beginPath();
+    for (let i = 0; i <= n * 2; i++) {
+      const a = (i / (n * 2)) * TAU;
+      const k = i % 2 === 0 ? 1 : 1 + fuzz / Math.min(rx, ry);
+      const px = Math.cos(a) * rx * k;
+      const py = Math.sin(a) * ry * k;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  };
+  path();
   ctx.fillStyle = cached(ctx, key, () => {
     const g = ctx.createRadialGradient(hx * 0.4, hy * 0.25 - ry * 0.3, 1, 0, 0, Math.max(rx, ry) * 1.15);
     g.addColorStop(0, '#5d4682');
@@ -710,6 +764,8 @@ function fuzzyBlob(
     return g;
   });
   ctx.fill();
+  shade(ctx, path, key, -rx - fuzz, -ry - fuzz, rx + fuzz, ry + fuzz, 0.45);
+  path();
   ctx.strokeStyle = INK;
   ctx.lineWidth = 1.6;
   ctx.lineJoin = 'round';
@@ -723,20 +779,23 @@ function drawBatRoost(ctx: CanvasRenderingContext2D, s: TowerArtState): void {
   const { t, fire: f, level, branch, mood, lean } = s;
 
   // 枯树干（左侧）
-  ctx.beginPath();
-  ctx.moveTo(-31, 12);
-  ctx.quadraticCurveTo(-25, 6, -25, -6);
-  ctx.quadraticCurveTo(-27, -28, -23, -48);
-  ctx.lineTo(-25, -60);
-  ctx.lineTo(-19, -54);
-  ctx.quadraticCurveTo(-4, -61, 14, -58);
-  ctx.lineTo(19, -66);
-  ctx.lineTo(20, -58);
-  ctx.quadraticCurveTo(26, -58, 31, -55);
-  ctx.quadraticCurveTo(10, -52, -15, -48);
-  ctx.quadraticCurveTo(-18, -26, -15, -6);
-  ctx.quadraticCurveTo(-14, 6, -7, 12);
-  ctx.closePath();
+  const treePath = (): void => {
+    ctx.beginPath();
+    ctx.moveTo(-31, 12);
+    ctx.quadraticCurveTo(-25, 6, -25, -6);
+    ctx.quadraticCurveTo(-27, -28, -23, -48);
+    ctx.lineTo(-25, -60);
+    ctx.lineTo(-19, -54);
+    ctx.quadraticCurveTo(-4, -61, 14, -58);
+    ctx.lineTo(19, -66);
+    ctx.lineTo(20, -58);
+    ctx.quadraticCurveTo(26, -58, 31, -55);
+    ctx.quadraticCurveTo(10, -52, -15, -48);
+    ctx.quadraticCurveTo(-18, -26, -15, -6);
+    ctx.quadraticCurveTo(-14, 6, -7, 12);
+    ctx.closePath();
+  };
+  treePath();
   ctx.fillStyle = cached(ctx, 'batTree', () => {
     const g = ctx.createLinearGradient(-30, 0, -10, 0);
     g.addColorStop(0, '#3a2c28');
@@ -745,6 +804,8 @@ function drawBatRoost(ctx: CanvasRenderingContext2D, s: TowerArtState): void {
     return g;
   });
   ctx.fill();
+  shade(ctx, treePath, 'tree', -31, -66, 31, 12, 0.4);
+  treePath();
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.4;
   ctx.lineJoin = 'round';
@@ -1003,6 +1064,13 @@ function drawSkullCandles(ctx: CanvasRenderingContext2D, s: TowerArtState): void
     return g;
   });
   ctx.fill();
+  shade(ctx, skullPath, 'skull', -17, -29, 17, 11, 0.42);
+  // 头盖骨左上的一点高光
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.beginPath();
+  ctx.ellipse(-8, -22, 3.2, 1.8, -0.6, 0, TAU);
+  ctx.fill();
+  skullPath();
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.6;
   ctx.lineJoin = 'round';
@@ -1066,6 +1134,11 @@ function drawSkullCandles(ctx: CanvasRenderingContext2D, s: TowerArtState): void
       ctx.fill();
     }
   }
+
+  // 烛光打在头盖骨顶上，跟着火焰一起闪
+  ctx.globalAlpha = 0.28 + heat * 0.35 + Math.sin(t * 13) * 0.04 + Math.sin(t * 7.3) * 0.04;
+  glowEllipse(ctx, 0, -25, 18, 9, flame.rgb);
+  ctx.globalAlpha = 1;
 
   // 蜡烛：紫蜡、蜡油流到头骨上、火焰摇曳
   const list = CANDLES[level - 1];
@@ -1230,10 +1303,15 @@ function drawWitchHat(ctx: CanvasRenderingContext2D, s: TowerArtState): void {
   ctx.translate(0, -8);
 
   // 帽檐
-  ctx.beginPath();
-  ctx.ellipse(0, 6, 29, 8.5, 0, 0, TAU);
+  const brimPath = (): void => {
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 29, 8.5, 0, 0, TAU);
+  };
+  brimPath();
   ctx.fillStyle = '#25163a';
   ctx.fill();
+  shade(ctx, brimPath, 'brim', -29, -2.5, 29, 14.5, 0.35);
+  brimPath();
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.4;
   ctx.stroke();
@@ -1280,6 +1358,8 @@ function drawWitchHat(ctx: CanvasRenderingContext2D, s: TowerArtState): void {
     return g;
   });
   ctx.fill();
+  shade(ctx, conePath, 'cone', -16, -53, 20, 4, 0.4);
+  conePath();
   ctx.strokeStyle = INK;
   ctx.lineWidth = 2.6;
   ctx.lineJoin = 'round';
@@ -1501,8 +1581,16 @@ function drawPumpkinMortar(ctx: CanvasRenderingContext2D, s: TowerArtState): voi
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+  const lobeUnion = (): void => {
+    ctx.beginPath();
+    for (const [lx, rx, ry] of lobes) {
+      ctx.moveTo(lx + rx, -11);
+      ctx.ellipse(lx, -11, rx, ry, 0, 0, TAU);
+    }
+  };
+  shade(ctx, lobeUnion, 'pumpkin', -27, -30, 27, 8, 0.45);
   // 高光
-  ctx.fillStyle = 'rgba(255,240,200,0.35)';
+  ctx.fillStyle = 'rgba(255,240,200,0.5)';
   ctx.beginPath();
   ctx.ellipse(-12, -20, 2.6, 6, 0.3, 0, TAU);
   ctx.fill();
@@ -1570,6 +1658,10 @@ function drawPumpkinMortar(ctx: CanvasRenderingContext2D, s: TowerArtState): voi
     ctx.fillStyle = `rgba(255,255,240,${hot * 0.7})`;
     ctx.fill();
   }
+  // 刻痕里透出来的烛光，溢到南瓜皮上
+  ctx.globalAlpha = 0.3 + Math.sin(t * 9) * 0.05 + hot * 0.5;
+  glowEllipse(ctx, 0, -7, 20, 15, '255,190,70');
+  ctx.globalAlpha = 1;
 
   // 炮：铁箍底座 + 一或两根炮管（A 双管，B 一根粗炮带尖刺）
   ctx.fillStyle = '#3a3346';
@@ -1594,6 +1686,12 @@ function drawPumpkinMortar(ctx: CanvasRenderingContext2D, s: TowerArtState): voi
     barrel(ctx, 5, -29, aim + 0.08, recoil * 0.6, 0.72, t + 0.5, f * 0.8, false);
   } else {
     barrel(ctx, 0, -29, aim, recoil, branch === 'B' ? 1.25 : 1, t, f, branch === 'B');
+  }
+  // 炮口火光照亮南瓜顶
+  if (f > 0.2) {
+    ctx.globalAlpha = f * 0.55;
+    glowEllipse(ctx, 0, -30, 30, 18, '255,170,40');
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -1799,8 +1897,15 @@ function cached(ctx: CanvasRenderingContext2D, key: string, make: () => CanvasGr
   return g;
 }
 
-/** 柔光圆：单位半径的径向渐变按颜色缓存，绘制时平移缩放；透明度由调用方的 globalAlpha 控制 */
+/**
+ * 柔光圆（加色混合，像真正的发光体一样提亮下面的颜色）。
+ * 单位半径的径向渐变按颜色缓存，绘制时平移缩放；透明度由调用方的 globalAlpha 控制。
+ */
 function glow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, rgb: string): void {
+  glowEllipse(ctx, x, y, r, r, rgb);
+}
+
+function glowEllipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, rgb: string): void {
   const g = cached(ctx, `glow|${rgb}`, () => {
     const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
     gr.addColorStop(0, `rgba(${rgb},0.9)`);
@@ -1809,12 +1914,75 @@ function glow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, rg
     return gr;
   });
   ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
   ctx.translate(x, y);
-  ctx.scale(r, r);
+  ctx.scale(rx, ry);
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(0, 0, 1, 0, TAU);
   ctx.fill();
+  ctx.restore();
+}
+
+/** 边缘虚化的投影（正常混合） */
+function softShadow(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, a: number): void {
+  const g = cached(ctx, 'softShadow', () => {
+    const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    gr.addColorStop(0, 'rgba(10,4,20,1)');
+    gr.addColorStop(0.55, 'rgba(10,4,20,0.7)');
+    gr.addColorStop(1, 'rgba(10,4,20,0)');
+    return gr;
+  });
+  ctx.save();
+  ctx.globalAlpha *= a;
+  ctx.translate(x, y);
+  ctx.scale(rx, ry);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * 统一光照：主光（月光）来自左上，晚霞的暖色轮廓光来自后上方。
+ * 在主体填色之后、描黑边之前调用：裁剪在主体轮廓内，
+ * 右下叠一层暗部，顶边叠一圈暖色轮廓光。(x0,y0)-(x1,y1) 为主体包围盒。
+ * 渐变按 key 缓存，同一种主体共用。
+ */
+function shade(
+  ctx: CanvasRenderingContext2D,
+  path: () => void,
+  key: string,
+  x0: number, y0: number, x1: number, y1: number,
+  dark: number,
+  rim = true,
+): void {
+  const w = x1 - x0;
+  const h = y1 - y0;
+  ctx.save();
+  path();
+  ctx.clip();
+  ctx.fillStyle = cached(ctx, `shade|${key}`, () => {
+    const g = ctx.createLinearGradient(x0 + w * 0.35, y0 + h * 0.3, x1, y1);
+    g.addColorStop(0, 'rgba(12,4,24,0)');
+    g.addColorStop(1, `rgba(12,4,24,${dark})`);
+    return g;
+  });
+  ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+  if (rim) {
+    path();
+    ctx.strokeStyle = cached(ctx, `rim|${key}`, () => {
+      const g = ctx.createLinearGradient(0, y0, 0, y0 + h * 0.45);
+      g.addColorStop(0, 'rgba(255,186,130,0.9)');
+      g.addColorStop(1, 'rgba(255,186,130,0)');
+      return g;
+    });
+    ctx.lineWidth = 6;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.55;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
